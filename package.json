@@ -1,0 +1,20 @@
+{
+  "name": "liar-sudoku",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "demo": "ts-node src/index.ts",
+    "stress": "ts-node src/stress.ts",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^26.5.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
