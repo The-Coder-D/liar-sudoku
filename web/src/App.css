@@ -68,6 +68,22 @@
   width: 100%;
 }
 
+.btn-hint {
+  width: 100%;
+  border-style: dashed;
+  color: var(--color-text-dim);
+}
+
+.btn-hint:hover:not(:disabled) {
+  border-color: var(--color-accent-truth);
+  color: var(--color-accent-truth);
+}
+
+.btn-hint:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .board-area {
   display: flex;
   gap: 40px;

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { cloneGrid, gridsEqual, type Grid } from "./engine/sudoku";
 import { generateLiarPuzzle, type LiarPuzzle } from "./engine/liarGenerator";
+import { getAccusationChain, getFillHint, type AccusationChain, type FillHint } from "./engine/hints";
 import { SudokuGrid, type CellCoord, type Mode } from "./components/SudokuGrid";
 import "./App.css";
 
@@ -19,6 +20,15 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [solved, setSolved] = useState(false);
 
+  // Accusation hints: the full logical contradiction chain, revealed one step per click.
+  const [accuseChain, setAccuseChain] = useState<AccusationChain | null>(null);
+  const [accuseHintIndex, setAccuseHintIndex] = useState(0);
+  const [accuseFullyRevealed, setAccuseFullyRevealed] = useState(false);
+
+  // Fill hints: reasoning first, digit revealed on a second click.
+  const [fillHint, setFillHint] = useState<FillHint | null>(null);
+  const [fillHintRevealed, setFillHintRevealed] = useState(false);
+
   const newPuzzle = useCallback(() => {
     setLoading(true);
     setSolved(false);
@@ -28,6 +38,10 @@ function App() {
     setMode("accuse");
     setWrongFillCells(new Set());
     setMessage(DEFAULT_MESSAGE);
+    setAccuseHintIndex(0);
+    setAccuseFullyRevealed(false);
+    setFillHint(null);
+    setFillHintRevealed(false);
 
     // Let the loading state paint before the (occasionally slow) generation runs.
     // TODO: move this to a Web Worker so the UI thread never blocks at all.
@@ -35,6 +49,7 @@ function App() {
       const result = generateLiarPuzzle(30);
       setPuzzle(result);
       setUserGrid(cloneGrid(result.puzzle));
+      setAccuseChain(getAccusationChain(result));
       setLoading(false);
     }, 50);
   }, []);
@@ -86,6 +101,8 @@ function App() {
     const next = cloneGrid(userGrid);
     next[selected.row][selected.col] = digit;
     setUserGrid(next);
+    setFillHint(null);
+    setFillHintRevealed(false);
 
     setWrongFillCells((prev) => {
       const copy = new Set(prev);
@@ -105,6 +122,55 @@ function App() {
     const next = cloneGrid(userGrid);
     next[selected.row][selected.col] = 0;
     setUserGrid(next);
+    setFillHint(null);
+    setFillHintRevealed(false);
+  };
+
+  const handleAccuseHint = () => {
+    if (!accuseChain) return;
+
+    if (accuseHintIndex < accuseChain.steps.length) {
+      const step = accuseChain.steps[accuseHintIndex];
+      setMessage(
+        `Assuming every clue is true: ${step.reason} That forces row ${step.row + 1}, column ${step.col + 1} to be ${step.value}.`,
+      );
+      setAccuseHintIndex((i) => i + 1);
+      return;
+    }
+
+    if (accuseChain.contradiction) {
+      const c = accuseChain.contradiction;
+      setMessage(
+        `Eventually that forces row ${c.row + 1}, column ${c.col + 1} into a corner: ${c.reason} That's impossible — so one of the given clues that fed into this chain must be false. Re-examine those clues and make your accusation.`,
+      );
+    } else {
+      setMessage(
+        "This puzzle's contradiction needs a deeper technique than naked/hidden singles can explain — try your own reasoning from here.",
+      );
+    }
+    setAccuseFullyRevealed(true);
+  };
+
+  const handleFillHint = () => {
+    if (fillHint && !fillHintRevealed) {
+      setFillHintRevealed(true);
+      setMessage(`Row ${fillHint.row + 1}, column ${fillHint.col + 1} — it's ${fillHint.value}.`);
+      setSelected({ row: fillHint.row, col: fillHint.col });
+      return;
+    }
+
+    const hint = getFillHint(puzzle, userGrid);
+    if (!hint) {
+      setFillHint(null);
+      setMessage(
+        "No safe next step found using naked or hidden singles from here — this spot needs a deeper technique. Try your own reasoning, or use Check to catch mistakes.",
+      );
+      return;
+    }
+    setFillHint(hint);
+    setFillHintRevealed(false);
+    setSelected({ row: hint.row, col: hint.col });
+    setMessage(`Look at row ${hint.row + 1}, column ${hint.col + 1} — ${hint.reason}`);
   };
 
   const handleCheck = () => {
@@ -168,6 +234,12 @@ function App() {
             </button>
           </div>
 
+          {mode === "accuse" && !liarFound && (
+            <button className="btn btn-hint" onClick={handleAccuseHint} disabled={accuseFullyRevealed}>
+              {accuseFullyRevealed ? "No further logic hints" : "Why is this a lie?"}
+            </button>
+          )}
+
           {mode === "fill" && (
             <div className="number-pad">
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
@@ -179,6 +251,12 @@ function App() {
                 Clear
               </button>
             </div>
+          )}
+
+          {mode === "fill" && (
+            <button className="btn btn-hint" onClick={handleFillHint}>
+              {fillHint && !fillHintRevealed ? "Reveal digit" : "Get a hint"}
+            </button>
           )}
 
           <p className="message" aria-live="polite">
