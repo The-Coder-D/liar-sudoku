@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "demo": "ts-node src/index.ts",
     "stress": "ts-node src/stress.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test:logic": "ts-node src/testLogicSolver.ts"
   },
   "keywords": [],
   "author": "",

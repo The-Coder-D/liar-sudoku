@@ -21,7 +21,30 @@
  * against all three conditions before it's accepted.
  */
 
-import { Grid, cloneGrid, countSolutions, generateFullSolution, generateGivens } from "./sudoku";
+import { cloneGrid, countSolutions, generateFullSolution, generateGivens, type Grid } from "./sudoku";
+
+/**
+ * Digits already visible in this cell's row, column, or box among the
+ * OTHER given clues. A fake value drawn from this set would create an
+ * instantly-spottable duplicate (two identical givens sharing a unit) —
+ * a "lie" a player could catch in two seconds without any real logic.
+ * We deliberately avoid ever generating that.
+ */
+function visibleNeighborDigits(givens: Grid, row: number, col: number): Set<number> {
+  const used = new Set<number>();
+  for (let i = 0; i < 9; i++) {
+    if (i !== col && givens[row][i] !== 0) used.add(givens[row][i]);
+    if (i !== row && givens[i][col] !== 0) used.add(givens[i][col]);
+  }
+  const boxRow = Math.floor(row / 3) * 3;
+  const boxCol = Math.floor(col / 3) * 3;
+  for (let r = boxRow; r < boxRow + 3; r++) {
+    for (let c = boxCol; c < boxCol + 3; c++) {
+      if ((r !== row || c !== col) && givens[r][c] !== 0) used.add(givens[r][c]);
+    }
+  }
+  return used;
+}
 
 export interface LiarPuzzle {
   /** The puzzle as shown to the player: given clues, one of which is false. */
@@ -48,7 +71,10 @@ export function injectLiarClue(fullGrid: Grid, givens: Grid): LiarPuzzle | null 
 
   for (const [r, c] of shuffle(givenCells)) {
     const trueValue = fullGrid[r][c];
-    const wrongValues = shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => n !== trueValue));
+    const neighborDigits = visibleNeighborDigits(givens, r, c);
+    const wrongValues = shuffle(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9].filter((n) => n !== trueValue && !neighborDigits.has(n)),
+    );
 
     for (const fakeValue of wrongValues) {
       const candidate = cloneGrid(givens);
