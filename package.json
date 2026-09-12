@@ -8,7 +8,8 @@
     "demo": "ts-node src/index.ts",
     "stress": "ts-node src/stress.ts",
     "build": "tsc",
-    "test:logic": "ts-node src/testLogicSolver.ts"
+    "test:logic": "ts-node src/testLogicSolver.ts",
+    "calibrate": "ts-node src/calibrate.ts"
   },
   "keywords": [],
   "author": "",

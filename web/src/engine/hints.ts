@@ -14,20 +14,20 @@
  *                   false" proof, revealed one step at a time.
  */
 
-import { createEmptyGrid, type Grid } from "./sudoku";
+import { createEmptyGrid, getCandidates, type Grid } from "./sudoku";
 import type { LiarPuzzle } from "./liarGenerator";
 import { propagateFully, type Contradiction, type LogicStep } from "./logicSolver";
 
 export interface FillHint extends LogicStep {}
 
 /**
- * Finds the next cell the player could safely fill in using only naked
- * and hidden singles, based on the true given clues plus anything the
- * player has already correctly entered. Returns null if no such step
- * exists yet (would need a deeper technique this solver doesn't have,
- * or genuine guessing).
+ * Builds a grid containing only facts actually known to be true: the
+ * verified-true given clues (the lying clue excluded) plus anything the
+ * player has already correctly entered. Everything else is 0 — including
+ * the player's own mistakes, which are deliberately ignored rather than
+ * treated as known information.
  */
-export function getFillHint(puzzle: LiarPuzzle, userGrid: Grid): FillHint | null {
+export function buildReferenceGrid(puzzle: LiarPuzzle, userGrid: Grid): Grid {
   const seed = createEmptyGrid();
 
   for (let r = 0; r < 9; r++) {
@@ -43,7 +43,18 @@ export function getFillHint(puzzle: LiarPuzzle, userGrid: Grid): FillHint | null
     }
   }
 
-  const result = propagateFully(seed);
+  return seed;
+}
+
+/**
+ * Finds the next cell the player could safely fill in using only naked
+ * and hidden singles, based on the true given clues plus anything the
+ * player has already correctly entered. Returns null if no such step
+ * exists yet (would need a deeper technique this solver doesn't have,
+ * or genuine guessing).
+ */
+export function getFillHint(puzzle: LiarPuzzle, userGrid: Grid): FillHint | null {
+  const result = propagateFully(buildReferenceGrid(puzzle, userGrid));
   return result.steps.length > 0 ? result.steps[0] : null;
 }
 
@@ -63,4 +74,55 @@ export function getAccusationChain(puzzle: LiarPuzzle): AccusationChain {
     steps: result.steps,
     contradiction: result.outcome === "contradiction" ? (result.contradiction ?? null) : null,
   };
+}
+
+/**
+ * Classifies whether placing `value` at (row, col) is justified by a naked
+ * or hidden single on `referenceGrid` — checking that SPECIFIC move, not
+ * just whether it happens to match whichever single step getFillHint's
+ * scan order found first. propagateFully only ever returns one "next"
+ * step, but a grid can easily have several valid singles available at
+ * once; without this, a player who finds a different-but-equally-valid
+ * single than the one the hint would have suggested gets no credit for
+ * it at all. Returns null if the move needs something beyond these two
+ * techniques to justify (which, for a correct move, means the player
+ * reasoned past what this solver can explain — the best compliment this
+ * engine can honestly give).
+ */
+export function classifyMove(referenceGrid: Grid, row: number, col: number, value: number): "naked-single" | "hidden-single" | null {
+  const candidates = getCandidates(referenceGrid, row, col);
+  if (!candidates.includes(value)) return null;
+  if (candidates.length === 1) return "naked-single";
+
+  if (isOnlySpotForDigit(referenceGrid, value, rowCells(row))) return "hidden-single";
+  if (isOnlySpotForDigit(referenceGrid, value, colCells(col))) return "hidden-single";
+  if (isOnlySpotForDigit(referenceGrid, value, boxCells(row, col))) return "hidden-single";
+
+  return null;
+}
+
+function rowCells(row: number): [number, number][] {
+  return Array.from({ length: 9 }, (_, c) => [row, c]);
+}
+
+function colCells(col: number): [number, number][] {
+  return Array.from({ length: 9 }, (_, r) => [r, col]);
+}
+
+function boxCells(row: number, col: number): [number, number][] {
+  const boxRow = Math.floor(row / 3) * 3;
+  const boxCol = Math.floor(col / 3) * 3;
+  const cells: [number, number][] = [];
+  for (let r = boxRow; r < boxRow + 3; r++) {
+    for (let c = boxCol; c < boxCol + 3; c++) cells.push([r, c]);
+  }
+  return cells;
+}
+
+function isOnlySpotForDigit(grid: Grid, digit: number, cells: [number, number][]): boolean {
+  let count = 0;
+  for (const [r, c] of cells) {
+    if (grid[r][c] === 0 && getCandidates(grid, r, c).includes(digit)) count++;
+  }
+  return count === 1;
 }

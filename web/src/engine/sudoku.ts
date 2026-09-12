@@ -39,7 +39,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /** Legal candidate digits for an empty cell, given the current grid state. */
-function getCandidates(grid: Grid, row: number, col: number): number[] {
+export function getCandidates(grid: Grid, row: number, col: number): number[] {
   const used = new Set<number>();
   for (let i = 0; i < SIZE; i++) {
     used.add(grid[row][i]);

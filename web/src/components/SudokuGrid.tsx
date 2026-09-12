@@ -20,6 +20,8 @@ interface SudokuGridProps {
   wrongCells: Set<string>;
   /** Cell that was just wrongly accused, for a brief shake animation. */
   accuseWrongCell: CellCoord | null;
+  /** Cells currently playing the "unit completed" pulse, mapped to a stagger delay in ms. */
+  celebratingCells: Map<string, number>;
   onCellClick: (row: number, col: number) => void;
 }
 
@@ -31,10 +33,15 @@ export function SudokuGrid({
   mode,
   wrongCells,
   accuseWrongCell,
+  celebratingCells,
   onCellClick,
 }: SudokuGridProps) {
   return (
-    <div className="sudoku-grid" role="grid" aria-label="Sudoku puzzle, one given clue is false">
+    <div
+      className={celebratingCells.size > 0 ? "sudoku-grid celebrating" : "sudoku-grid"}
+      role="grid"
+      aria-label="Sudoku puzzle, one given clue is false"
+    >
       {userGrid.map((row, r) =>
         row.map((value, c) => {
           const isGiven = puzzle[r][c] !== 0;
@@ -44,6 +51,9 @@ export function SudokuGrid({
           const isWrong = wrongCells.has(`${r}-${c}`);
           const isShaking = accuseWrongCell !== null && accuseWrongCell.row === r && accuseWrongCell.col === c;
           const isAccusable = mode === "accuse" && isGiven && liarCell === null;
+          const isFillable = mode === "fill" && value === 0 && (!isGiven || isLiarResolved);
+          const celebrateDelay = celebratingCells.get(`${r}-${c}`);
+          const isCelebrating = celebrateDelay !== undefined;
 
           const classes = [
             "cell",
@@ -55,7 +65,9 @@ export function SudokuGrid({
             isWrong ? "cell-wrong" : "",
             isShaking ? "cell-shake" : "",
             isAccusable ? "cell-accusable" : "",
+            isFillable ? "cell-fillable" : "",
             isLiarResolved ? "cell-liar-resolved" : "",
+            isCelebrating ? "cell-celebrate" : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -65,6 +77,7 @@ export function SudokuGrid({
               key={`${r}-${c}`}
               type="button"
               className={classes}
+              style={isCelebrating ? { animationDelay: `${celebrateDelay}ms` } : undefined}
               onClick={() => onCellClick(r, c)}
               aria-label={`Row ${r + 1}, column ${c + 1}${value !== 0 ? `, ${value}` : ", empty"}`}
             >

@@ -83,19 +83,23 @@ export function injectLiarClue(fullGrid: Grid, givens: Grid): LiarPuzzle | null 
       // Condition 1: PROVABLE — the full given set (with the lie) must be impossible.
       if (countSolutions(cloneGrid(candidate), 2) !== 0) continue;
 
+      // Condition 3: RESOLVABLE — check this BEFORE the expensive condition 2 below.
+      // At low clue counts most candidate cells fail this (removing them breaks
+      // uniqueness entirely, lie or no lie), so checking the cheap single-solve
+      // condition first avoids paying for condition 2's ~N solves on candidates
+      // that were always going to be rejected anyway.
+      const withLiarRemoved = cloneGrid(candidate);
+      withLiarRemoved[r][c] = 0;
+      if (countSolutions(cloneGrid(withLiarRemoved), 2) !== 1) continue;
+
       // Condition 2: UNAMBIGUOUS — no other clue's removal should also fix it.
       const onlyThisClueExplainsIt = givenCells.every(([gr, gc]) => {
-        if (gr === r && gc === c) return true; // checked separately, in condition 3
+        if (gr === r && gc === c) return true; // already checked above as condition 3
         const trial = cloneGrid(candidate);
         trial[gr][gc] = 0;
         return countSolutions(trial, 2) === 0; // still broken without this cell → good
       });
       if (!onlyThisClueExplainsIt) continue;
-
-      // Condition 3: RESOLVABLE — removing the true liar restores a unique, correct solution.
-      const withLiarRemoved = cloneGrid(candidate);
-      withLiarRemoved[r][c] = 0;
-      if (countSolutions(cloneGrid(withLiarRemoved), 2) !== 1) continue;
 
       return { puzzle: candidate, liarRow: r, liarCol: c, trueSolution: fullGrid };
     }
