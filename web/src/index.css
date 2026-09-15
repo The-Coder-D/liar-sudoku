@@ -55,3 +55,11 @@ button {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Manual override from Settings, for players who want less motion regardless of OS setting. */
+body.reduced-motion-pref *,
+body.reduced-motion-pref *::before,
+body.reduced-motion-pref *::after {
+  animation-duration: 0.001ms !important;
+  transition-duration: 0.001ms !important;
+}

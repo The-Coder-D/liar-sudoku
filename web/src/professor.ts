@@ -16,6 +16,18 @@ export const PROFESSOR_FIRST_GREETING = [
   "First case, then. Trust nothing you're told — prove everything instead.",
 ];
 
+export const PROFESSOR_NORMAL_GREETING = [
+  "Straight classic Sudoku — no lies hiding this time. Let's see how fast you really are.",
+  "Every clue here is exactly what it claims to be. Consider it a warm-up.",
+  "No tricks in this one. Just you, the grid, and the clock.",
+];
+
+export const PROFESSOR_HOME_LINES = [
+  "Two games on offer: one honest, one full of lies. Your call.",
+  "Welcome back. What'll it be today?",
+  "Classic for a warm-up, or Liar Sudoku if you're after the real challenge.",
+];
+
 export const PROFESSOR_LOADING = [
   "Give me a moment — I don't show you a puzzle until I can prove the lie is real.",
   "Building your case file. Every lie I hand you has to be provable, no exceptions.",
@@ -74,6 +86,12 @@ export const PROFESSOR_SOLVED = [
   "That's a wrap. Go on, feel smug about it for a second.",
 ];
 
+export const PROFESSOR_NORMAL_SOLVED = [
+  "Solved, clean and honest. Good work.",
+  "There we are — every digit earns its place.",
+  "That's a wrap. No tricks needed on this one, and you still had to earn it.",
+];
+
 export const PROFESSOR_CHECK_CLEAN = ["Nothing to fix. You're doing better than you think.", "All clean. Keep going."];
 
 export const PROFESSOR_CHECK_MISTAKES = [
@@ -87,5 +105,12 @@ export const PROFESSOR_IDLE_TIPS = [
   "Sometimes the fastest way forward is ruling out what a number can't be.",
   "Take your time. There's a clock, but it's not judging you.",
   "If you're stuck on the lie, \"Why is this a lie?\" will walk the logic for you.",
+  "Still there? No rush. Good deduction takes exactly as long as it takes.",
+];
+
+export const PROFESSOR_NORMAL_IDLE_TIPS = [
+  "Stuck? Look for the row or box with the fewest blanks left — it's usually the most constrained.",
+  "Sometimes the fastest way forward is ruling out what a number can't be.",
+  "Take your time. There's a clock, but it's not judging you.",
   "Still there? No rush. Good deduction takes exactly as long as it takes.",
 ];

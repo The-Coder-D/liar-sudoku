@@ -58,6 +58,32 @@ export function getFillHint(puzzle: LiarPuzzle, userGrid: Grid): FillHint | null
   return result.steps.length > 0 ? result.steps[0] : null;
 }
 
+/**
+ * Same idea as buildReferenceGrid/getFillHint above, but for a classic
+ * puzzle with no lie to exclude — used by Normal Sudoku mode. Still
+ * ignores the player's own mistakes rather than treating them as known.
+ */
+export function buildNormalReferenceGrid(puzzle: Grid, solution: Grid, userGrid: Grid): Grid {
+  const seed = createEmptyGrid();
+
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 9; c++) {
+      if (puzzle[r][c] !== 0) {
+        seed[r][c] = puzzle[r][c];
+      } else if (userGrid[r][c] !== 0 && userGrid[r][c] === solution[r][c]) {
+        seed[r][c] = userGrid[r][c];
+      }
+    }
+  }
+
+  return seed;
+}
+
+export function getNormalFillHint(puzzle: Grid, solution: Grid, userGrid: Grid): FillHint | null {
+  const result = propagateFully(buildNormalReferenceGrid(puzzle, solution, userGrid));
+  return result.steps.length > 0 ? result.steps[0] : null;
+}
+
 export interface AccusationChain {
   steps: LogicStep[];
   contradiction: Contradiction | null;
