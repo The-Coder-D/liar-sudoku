@@ -114,3 +114,19 @@ export const PROFESSOR_NORMAL_IDLE_TIPS = [
   "Take your time. There's a clock, but it's not judging you.",
   "Still there? No rush. Good deduction takes exactly as long as it takes.",
 ];
+
+export const PROFESSOR_RESUMED = [
+  "Welcome back — right where you left off.",
+  "Ah, continuing. Let's finish what we started.",
+  "Back again. The board remembers exactly where you left it.",
+];
+
+export const PROFESSOR_NEW_BEST_TIME = [
+  "New best time, actually. I'm keeping notes.",
+  "Faster than ever — well earned.",
+];
+
+export const PROFESSOR_STREAK_CONTINUED = [
+  "Another day, another solve. That streak isn't building itself.",
+  "Consistency. That's the real skill, if you ask me.",
+];

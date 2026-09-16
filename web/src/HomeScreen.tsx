@@ -13,11 +13,14 @@ import {
   setSoundEnabled,
 } from "./preferences";
 import { sfx } from "./sound";
+import { loadStats } from "./stats";
+import { loadSavedGame, describeSavedGame } from "./gameSave";
 
 export type GameMode = "liar" | "normal";
 
 interface HomeScreenProps {
   onSelectMode: (mode: GameMode) => void;
+  onLoadGame: () => void;
   professorMuted: boolean;
   onToggleProfessorMuted: () => void;
 }
@@ -64,6 +67,13 @@ function GhostGrid({ size }: { size: number }) {
   );
 }
 
+function formatBestTime(seconds: number | null): string {
+  if (seconds === null) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 function LogoIcon() {
   return (
     <svg viewBox="0 0 32 32" className="logo-icon" aria-hidden="true">
@@ -80,7 +90,9 @@ function LogoIcon() {
   );
 }
 
-export function HomeScreen({ onSelectMode, professorMuted, onToggleProfessorMuted }: HomeScreenProps) {
+export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleProfessorMuted }: HomeScreenProps) {
+  const [stats] = useState(() => loadStats());
+  const [savedGame] = useState(() => loadSavedGame());
   const [professorLine] = useState(() => pickRandom(PROFESSOR_HOME_LINES));
   const [showSettings, setShowSettings] = useState(false);
   const [tutorialResetNote, setTutorialResetNote] = useState(false);
@@ -147,6 +159,18 @@ export function HomeScreen({ onSelectMode, professorMuted, onToggleProfessorMute
         <LogoIcon />
         <h1>Liar Sudoku</h1>
         <p className="tagline">One game where the clues lie to you. One where they don't.</p>
+        {stats.totalSolved > 0 && (
+          <div className="stats-strip">
+            {stats.currentStreak > 0 && (
+              <span className="stats-strip-item stats-strip-streak">
+                🔥 {stats.currentStreak} day{stats.currentStreak === 1 ? "" : "s"}
+              </span>
+            )}
+            <span className="stats-strip-item">
+              {stats.totalSolved} puzzle{stats.totalSolved === 1 ? "" : "s"} solved
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="menu-grid">
@@ -174,15 +198,29 @@ export function HomeScreen({ onSelectMode, professorMuted, onToggleProfessorMute
           <span className="menu-card-desc">Classic rules, no twist. A warm-up, or a change of pace.</span>
         </button>
 
-        <button
-          className="menu-card menu-card-disabled"
-          disabled
-          title="Coming soon — no save/resume yet"
-          style={{ animationDelay: "140ms" }}
-        >
-          <span className="menu-card-title">Load Game</span>
-          <span className="menu-card-desc">Coming soon. There's no save/resume yet — every puzzle starts fresh.</span>
-        </button>
+        {savedGame ? (
+          <button
+            className="menu-card"
+            onClick={() => {
+              sfx.click();
+              onLoadGame();
+            }}
+            style={{ animationDelay: "140ms" }}
+          >
+            <span className="menu-card-title">Load Game</span>
+            <span className="menu-card-desc">Continue: {describeSavedGame(savedGame)} progress.</span>
+          </button>
+        ) : (
+          <button
+            className="menu-card menu-card-disabled"
+            disabled
+            title="No game in progress yet"
+            style={{ animationDelay: "140ms" }}
+          >
+            <span className="menu-card-title">Load Game</span>
+            <span className="menu-card-desc">Nothing to resume yet — start a puzzle and come back to it here.</span>
+          </button>
+        )}
 
         <button className="menu-card" onClick={() => setShowSettings(true)} style={{ animationDelay: "210ms" }}>
           <span className="menu-card-title">Settings</span>
@@ -200,6 +238,32 @@ export function HomeScreen({ onSelectMode, professorMuted, onToggleProfessorMute
         >
           <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
             <h2 id="settings-title">Settings</h2>
+
+            {stats.totalSolved > 0 && (
+              <div className="stats-table">
+                <div className="stats-table-header">
+                  <span />
+                  <span>Gentle</span>
+                  <span>Sharp</span>
+                  <span>Extreme</span>
+                </div>
+                <div className="stats-table-row">
+                  <span>Liar</span>
+                  {(["gentle", "sharp", "extreme"] as const).map((d) => (
+                    <span key={d}>{formatBestTime(stats.liar[d].bestTimeSeconds)}</span>
+                  ))}
+                </div>
+                <div className="stats-table-row">
+                  <span>Normal</span>
+                  {(["gentle", "sharp", "extreme"] as const).map((d) => (
+                    <span key={d}>{formatBestTime(stats.normal[d].bestTimeSeconds)}</span>
+                  ))}
+                </div>
+                {stats.longestStreak > 1 && (
+                  <p className="stats-table-footnote">Longest streak: {stats.longestStreak} days</p>
+                )}
+              </div>
+            )}
 
             <div className="settings-row">
               <div>

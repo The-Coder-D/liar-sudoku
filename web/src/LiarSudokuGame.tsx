@@ -35,10 +35,15 @@ import {
   PROFESSOR_IDLE_TIPS,
   PROFESSOR_FIRST_GREETING,
   PROFESSOR_LOADING,
+  PROFESSOR_RESUMED,
+  PROFESSOR_NEW_BEST_TIME,
+  PROFESSOR_STREAK_CONTINUED,
 } from "./professor";
 import { ONBOARDING_KEY } from "./storageKeys";
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
+import { recordSolve } from "./stats";
+import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
 import "./App.css";
 
 const DEFAULT_MESSAGE = "One clue below is lying. Find it before you can finish the grid.";
@@ -53,9 +58,10 @@ interface LiarSudokuGameProps {
   onExit: () => void;
   professorMuted: boolean;
   onToggleProfessorMuted: () => void;
+  resume?: Extract<SavedGame, { mode: "liar" }>;
 }
 
-export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted }: LiarSudokuGameProps) {
+export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted, resume }: LiarSudokuGameProps) {
   const [puzzle, setPuzzle] = useState<LiarPuzzle | null>(null);
   const [userGrid, setUserGrid] = useState<Grid | null>(null);
   const [liarFound, setLiarFound] = useState(false);
@@ -174,8 +180,56 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted 
   }, []);
 
   useEffect(() => {
+    if (resume) {
+      setPuzzle({ puzzle: resume.puzzle, liarRow: resume.liarRow, liarCol: resume.liarCol, trueSolution: resume.trueSolution });
+      setUserGrid(resume.userGrid);
+      setLiarFound(resume.liarFound);
+      setMistakes(resume.mistakes);
+      setDifficulty(resume.difficulty);
+      setElapsedSeconds(resume.elapsedSeconds);
+      setSolvedTime(null);
+      setMode(resume.liarFound ? "fill" : "accuse");
+      setAccuseChain(getAccusationChain({ puzzle: resume.puzzle, liarRow: resume.liarRow, liarCol: resume.liarCol, trueSolution: resume.trueSolution }));
+      setLoading(false);
+      hasGreetedRef.current = true; // a resumed game shouldn't replay the very-first-ever greeting
+      if (!professorMutedRef.current) {
+        setProfessorLine(pickRandom(PROFESSOR_RESUMED));
+        setProfessorEmotion("happy");
+      }
+      setMessage(resume.liarFound ? DEFAULT_MESSAGE : "One clue below is lying. Find it before you can finish the grid.");
+      return;
+    }
     startNewPuzzle(getDefaultDifficulty());
+    // Intentionally runs once on mount only — `resume` is a one-time hydration
+    // input, not something that should re-trigger this effect if it changes later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startNewPuzzle]);
+
+  // Auto-save: overwrites the single global save slot on every meaningful
+  // change, so "Load Game" always resumes whichever game was played most
+  // recently, in either mode. Cleared entirely once solved — there's
+  // nothing left to resume.
+  useEffect(() => {
+    if (loading || !puzzle || !userGrid) return;
+    if (solved) {
+      clearSavedGame();
+      return;
+    }
+    const save: SavedGame = {
+      mode: "liar",
+      difficulty,
+      puzzle: puzzle.puzzle,
+      liarRow: puzzle.liarRow,
+      liarCol: puzzle.liarCol,
+      trueSolution: puzzle.trueSolution,
+      userGrid,
+      liarFound,
+      mistakes,
+      elapsedSeconds,
+      savedAt: Date.now(),
+    };
+    writeSavedGame(save);
+  }, [loading, solved, puzzle, userGrid, liarFound, mistakes, elapsedSeconds, difficulty]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -301,7 +355,14 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted 
       setShowWinModal(true);
       setMessage(`Solved in ${formatTime(elapsedSeconds)} — the lie is exposed and the grid checks out.`);
       sfx.solved();
-      professorSay(PROFESSOR_SOLVED, "excited");
+      const { isNewBestTime, streakChanged } = recordSolve("liar", difficulty, elapsedSeconds);
+      if (isNewBestTime) {
+        professorSay(PROFESSOR_NEW_BEST_TIME, "excited");
+      } else if (streakChanged) {
+        professorSay(PROFESSOR_STREAK_CONTINUED, "excited");
+      } else {
+        professorSay(PROFESSOR_SOLVED, "excited");
+      }
       return;
     }
 

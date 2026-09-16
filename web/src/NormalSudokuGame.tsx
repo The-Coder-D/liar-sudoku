@@ -25,9 +25,14 @@ import {
   PROFESSOR_CHECK_MISTAKES,
   PROFESSOR_NORMAL_IDLE_TIPS,
   PROFESSOR_NORMAL_GREETING,
+  PROFESSOR_RESUMED,
+  PROFESSOR_NEW_BEST_TIME,
+  PROFESSOR_STREAK_CONTINUED,
 } from "./professor";
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
+import { recordSolve } from "./stats";
+import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
 import "./App.css";
 
 const DEFAULT_MESSAGE = "Fill the grid. Every clue here is exactly what it claims to be.";
@@ -42,9 +47,10 @@ interface NormalSudokuGameProps {
   onExit: () => void;
   professorMuted: boolean;
   onToggleProfessorMuted: () => void;
+  resume?: Extract<SavedGame, { mode: "normal" }>;
 }
 
-export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMuted }: NormalSudokuGameProps) {
+export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMuted, resume }: NormalSudokuGameProps) {
   const [puzzle, setPuzzle] = useState<Grid | null>(null);
   const [solution, setSolution] = useState<Grid | null>(null);
   const [userGrid, setUserGrid] = useState<Grid | null>(null);
@@ -138,8 +144,47 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
   }, []);
 
   useEffect(() => {
+    if (resume) {
+      setPuzzle(resume.puzzle);
+      setSolution(resume.solution);
+      setUserGrid(resume.userGrid);
+      setMistakesCaught(resume.mistakesCaught);
+      setDifficulty(resume.difficulty);
+      setElapsedSeconds(resume.elapsedSeconds);
+      setSolvedTime(null);
+      setLoading(false);
+      hasGreetedRef.current = true;
+      if (!professorMutedRef.current) {
+        setProfessorLine(pickRandom(PROFESSOR_RESUMED));
+        setProfessorEmotion("happy");
+      }
+      setMessage(DEFAULT_MESSAGE);
+      return;
+    }
     startNewPuzzle(getDefaultDifficulty());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startNewPuzzle]);
+
+  // Auto-save into the same single global slot Liar Sudoku uses — whichever
+  // mode you played most recently is what "Load Game" resumes.
+  useEffect(() => {
+    if (loading || !puzzle || !solution || !userGrid) return;
+    if (solved) {
+      clearSavedGame();
+      return;
+    }
+    const save: SavedGame = {
+      mode: "normal",
+      difficulty,
+      puzzle,
+      solution,
+      userGrid,
+      mistakesCaught,
+      elapsedSeconds,
+      savedAt: Date.now(),
+    };
+    writeSavedGame(save);
+  }, [loading, solved, puzzle, solution, userGrid, mistakesCaught, elapsedSeconds, difficulty]);
 
   useEffect(() => {
     if (loading || solved) return;
@@ -218,7 +263,14 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
       setShowWinModal(true);
       setMessage(`Solved in ${formatTime(elapsedSeconds)} — every digit checks out.`);
       sfx.solved();
-      professorSay(PROFESSOR_NORMAL_SOLVED, "excited");
+      const { isNewBestTime, streakChanged } = recordSolve("normal", difficulty, elapsedSeconds);
+      if (isNewBestTime) {
+        professorSay(PROFESSOR_NEW_BEST_TIME, "excited");
+      } else if (streakChanged) {
+        professorSay(PROFESSOR_STREAK_CONTINUED, "excited");
+      } else {
+        professorSay(PROFESSOR_NORMAL_SOLVED, "excited");
+      }
       return;
     }
 
