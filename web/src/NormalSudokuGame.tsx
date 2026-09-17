@@ -33,6 +33,14 @@ import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
 import { recordSolve } from "./stats";
 import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
+import {
+  type PencilMarks as PencilMarksType,
+  toggleMark,
+  clearPeerPencilMarks,
+  clonePencilMarks,
+  serializePencilMarks,
+  deserializePencilMarks,
+} from "./pencilMarks";
 import "./App.css";
 
 const DEFAULT_MESSAGE = "Fill the grid. Every clue here is exactly what it claims to be.";
@@ -67,6 +75,9 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
 
   const [fillHint, setFillHint] = useState<FillHint | null>(null);
   const [fillHintRevealed, setFillHintRevealed] = useState(false);
+
+  const [pencilMarks, setPencilMarks] = useState<PencilMarksType>(new Map());
+  const [notesMode, setNotesMode] = useState(false);
 
   const [celebratingCells, setCelebratingCells] = useState<Map<string, number>>(new Map());
 
@@ -114,6 +125,8 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     setWrongFillCells(new Set());
     setFillHint(null);
     setFillHintRevealed(false);
+    setPencilMarks(new Map());
+    setNotesMode(false);
     setCelebratingCells(new Map());
     setToast(null);
     setDifficulty(targetDifficulty);
@@ -152,6 +165,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
       setDifficulty(resume.difficulty);
       setElapsedSeconds(resume.elapsedSeconds);
       setSolvedTime(null);
+      setPencilMarks(deserializePencilMarks(resume.pencilMarks));
       setLoading(false);
       hasGreetedRef.current = true;
       if (!professorMutedRef.current) {
@@ -182,9 +196,10 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
       mistakesCaught,
       elapsedSeconds,
       savedAt: Date.now(),
+      pencilMarks: serializePencilMarks(pencilMarks),
     };
     writeSavedGame(save);
-  }, [loading, solved, puzzle, solution, userGrid, mistakesCaught, elapsedSeconds, difficulty]);
+  }, [loading, solved, puzzle, solution, userGrid, mistakesCaught, elapsedSeconds, difficulty, pencilMarks]);
 
   useEffect(() => {
     if (loading || solved) return;
@@ -235,6 +250,12 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     noteActivity();
     const { row, col } = selected;
 
+    if (notesMode) {
+      sfx.noteToggle();
+      setPencilMarks((prev) => toggleMark(prev, row, col, digit));
+      return;
+    }
+
     const isCorrect = digit === solution[row][col];
     const technique = isCorrect
       ? classifyMove(buildNormalReferenceGrid(puzzle, solution, userGrid), row, col, digit)
@@ -249,6 +270,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     setUserGrid(next);
     setFillHint(null);
     setFillHintRevealed(false);
+    setPencilMarks((prev) => clearPeerPencilMarks(prev, row, col, digit));
 
     setWrongFillCells((prev) => {
       const copy = new Set(prev);
@@ -305,6 +327,14 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     if (!selected || !isEditable(selected.row, selected.col)) return;
     noteActivity();
     sfx.clear();
+    if (notesMode) {
+      setPencilMarks((prev) => {
+        const next = clonePencilMarks(prev);
+        next.delete(`${selected.row}-${selected.col}`);
+        return next;
+      });
+      return;
+    }
     const next = cloneGrid(userGrid);
     next[selected.row][selected.col] = 0;
     setUserGrid(next);
@@ -421,11 +451,23 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
           wrongCells={wrongFillCells}
           accuseWrongCell={null}
           celebratingCells={celebratingCells}
+          pencilMarks={pencilMarks}
           onCellClick={handleCellClick}
         />
 
         <aside className="side-panel">
-          <div className="number-pad">
+          <button
+            className={notesMode ? "btn btn-toggle btn-toggle-on notes-toggle" : "btn btn-toggle notes-toggle"}
+            onClick={() => {
+              noteActivity();
+              setNotesMode((m) => !m);
+            }}
+            aria-pressed={notesMode}
+          >
+            ✎ Notes: {notesMode ? "On" : "Off"}
+          </button>
+
+          <div className={notesMode ? "number-pad number-pad-notes" : "number-pad"}>
             {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
               <button key={n} className="num-btn" onClick={() => handleDigit(n)} disabled={!selected}>
                 {n}

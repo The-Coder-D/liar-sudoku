@@ -15,6 +15,8 @@ interface SavedLiarGame {
   mistakes: number;
   elapsedSeconds: number;
   savedAt: number;
+  /** Optional so saves made before pencil marks existed still parse fine. */
+  pencilMarks?: Record<string, number[]>;
 }
 
 interface SavedNormalGame {
@@ -26,6 +28,7 @@ interface SavedNormalGame {
   mistakesCaught: number;
   elapsedSeconds: number;
   savedAt: number;
+  pencilMarks?: Record<string, number[]>;
 }
 
 export type SavedGame = SavedLiarGame | SavedNormalGame;

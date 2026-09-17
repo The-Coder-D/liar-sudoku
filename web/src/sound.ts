@@ -82,6 +82,9 @@ export const sfx = {
   /** Selecting a cell — deliberately near-subliminal, it fires constantly. */
   select: () => tone({ freq: 420, duration: 0.05, type: "sine", gain: 0.18 }),
 
+  /** Toggling a pencil mark — quieter and higher than a real placement, so it never gets confused with one. */
+  noteToggle: () => tone({ freq: 900, duration: 0.04, type: "sine", gain: 0.13 }),
+
   /** Placing a digit. */
   place: () => tone({ freq: 620, duration: 0.09, type: "triangle", gain: 0.34 }),
 

@@ -44,6 +44,14 @@ import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
 import { recordSolve } from "./stats";
 import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
+import {
+  type PencilMarks as PencilMarksType,
+  toggleMark,
+  clearPeerPencilMarks,
+  clonePencilMarks,
+  serializePencilMarks,
+  deserializePencilMarks,
+} from "./pencilMarks";
 import "./App.css";
 
 const DEFAULT_MESSAGE = "One clue below is lying. Find it before you can finish the grid.";
@@ -87,6 +95,9 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
   // Fill hints: reasoning first, digit revealed on a second click.
   const [fillHint, setFillHint] = useState<FillHint | null>(null);
   const [fillHintRevealed, setFillHintRevealed] = useState(false);
+
+  const [pencilMarks, setPencilMarks] = useState<PencilMarksType>(new Map());
+  const [notesMode, setNotesMode] = useState(false);
 
   // Cells currently playing the "unit completed" pulse animation, mapped to a stagger delay in ms.
   const [celebratingCells, setCelebratingCells] = useState<Map<string, number>>(new Map());
@@ -142,6 +153,8 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     setAccuseFullyRevealed(false);
     setFillHint(null);
     setFillHintRevealed(false);
+    setPencilMarks(new Map());
+    setNotesMode(false);
     setCelebratingCells(new Map());
     setToast(null);
     setDifficulty(targetDifficulty);
@@ -190,6 +203,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
       setSolvedTime(null);
       setMode(resume.liarFound ? "fill" : "accuse");
       setAccuseChain(getAccusationChain({ puzzle: resume.puzzle, liarRow: resume.liarRow, liarCol: resume.liarCol, trueSolution: resume.trueSolution }));
+      setPencilMarks(deserializePencilMarks(resume.pencilMarks));
       setLoading(false);
       hasGreetedRef.current = true; // a resumed game shouldn't replay the very-first-ever greeting
       if (!professorMutedRef.current) {
@@ -227,9 +241,10 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
       mistakes,
       elapsedSeconds,
       savedAt: Date.now(),
+      pencilMarks: serializePencilMarks(pencilMarks),
     };
     writeSavedGame(save);
-  }, [loading, solved, puzzle, userGrid, liarFound, mistakes, elapsedSeconds, difficulty]);
+  }, [loading, solved, puzzle, userGrid, liarFound, mistakes, elapsedSeconds, difficulty, pencilMarks]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -326,6 +341,12 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     noteActivity();
     const { row, col } = selected;
 
+    if (notesMode) {
+      sfx.noteToggle();
+      setPencilMarks((prev) => toggleMark(prev, row, col, digit));
+      return;
+    }
+
     const isCorrect = digit === puzzle.trueSolution[row][col];
     // Classify the SPECIFIC move the player just made — not just whether it matches
     // whatever cell getFillHint's scan order happens to find first. A grid can have
@@ -341,6 +362,9 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     setUserGrid(next);
     setFillHint(null);
     setFillHintRevealed(false);
+    // A placed digit is a real answer, correct or not — no peer cell in its row,
+    // column, or box can still be a candidate for it, so their notes go too.
+    setPencilMarks((prev) => clearPeerPencilMarks(prev, row, col, digit));
 
     setWrongFillCells((prev) => {
       const copy = new Set(prev);
@@ -398,6 +422,14 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     if (mode !== "fill" || !selected || !isEditable(selected.row, selected.col)) return;
     noteActivity();
     sfx.clear();
+    if (notesMode) {
+      setPencilMarks((prev) => {
+        const next = clonePencilMarks(prev);
+        next.delete(`${selected.row}-${selected.col}`);
+        return next;
+      });
+      return;
+    }
     const next = cloneGrid(userGrid);
     next[selected.row][selected.col] = 0;
     setUserGrid(next);
@@ -543,6 +575,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
           wrongCells={wrongFillCells}
           accuseWrongCell={accuseWrongCell}
           celebratingCells={celebratingCells}
+          pencilMarks={pencilMarks}
           onCellClick={handleCellClick}
         />
 
@@ -576,7 +609,20 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
           )}
 
           {mode === "fill" && (
-            <div className="number-pad">
+            <button
+              className={notesMode ? "btn btn-toggle btn-toggle-on notes-toggle" : "btn btn-toggle notes-toggle"}
+              onClick={() => {
+                noteActivity();
+                setNotesMode((m) => !m);
+              }}
+              aria-pressed={notesMode}
+            >
+              ✎ Notes: {notesMode ? "On" : "Off"}
+            </button>
+          )}
+
+          {mode === "fill" && (
+            <div className={notesMode ? "number-pad number-pad-notes" : "number-pad"}>
               {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => (
                 <button key={n} className="num-btn" onClick={() => handleDigit(n)} disabled={!selected}>
                   {n}

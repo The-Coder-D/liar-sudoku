@@ -22,7 +22,22 @@ interface SudokuGridProps {
   accuseWrongCell: CellCoord | null;
   /** Cells currently playing the "unit completed" pulse, mapped to a stagger delay in ms. */
   celebratingCells: Map<string, number>;
+  /** Candidate digits noted per blank cell, keyed "row-col". Only shown while the cell has no final value. */
+  pencilMarks: Map<string, Set<number>>;
   onCellClick: (row: number, col: number) => void;
+}
+
+/** A 3x3 layout of small digits, 1-9 in reading order, showing only the noted ones. */
+function PencilGrid({ marks }: { marks: Set<number> }) {
+  return (
+    <div className="pencil-grid" aria-hidden="true">
+      {Array.from({ length: 9 }, (_, i) => i + 1).map((digit) => (
+        <span key={digit} className="pencil-digit">
+          {marks.has(digit) ? digit : ""}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export function SudokuGrid({
@@ -34,6 +49,7 @@ export function SudokuGrid({
   wrongCells,
   accuseWrongCell,
   celebratingCells,
+  pencilMarks,
   onCellClick,
 }: SudokuGridProps) {
   return (
@@ -54,6 +70,7 @@ export function SudokuGrid({
           const isFillable = mode === "fill" && value === 0 && (!isGiven || isLiarResolved);
           const celebrateDelay = celebratingCells.get(`${r}-${c}`);
           const isCelebrating = celebrateDelay !== undefined;
+          const marks = value === 0 ? pencilMarks.get(`${r}-${c}`) : undefined;
 
           const classes = [
             "cell",
@@ -68,6 +85,7 @@ export function SudokuGrid({
             isFillable ? "cell-fillable" : "",
             isLiarResolved ? "cell-liar-resolved" : "",
             isCelebrating ? "cell-celebrate" : "",
+            marks && marks.size > 0 ? "cell-has-marks" : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -81,7 +99,7 @@ export function SudokuGrid({
               onClick={() => onCellClick(r, c)}
               aria-label={`Row ${r + 1}, column ${c + 1}${value !== 0 ? `, ${value}` : ", empty"}`}
             >
-              {value !== 0 ? value : ""}
+              {value !== 0 ? value : marks && marks.size > 0 ? <PencilGrid marks={marks} /> : ""}
             </button>
           );
         }),
