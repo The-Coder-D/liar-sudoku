@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Professor } from "./components/Professor";
 import { PROFESSOR_HOME_LINES } from "./professor";
 import { pickRandom } from "./celebrations";
@@ -25,44 +25,46 @@ interface HomeScreenProps {
   onToggleProfessorMuted: () => void;
 }
 
-// Fixed (not random-on-every-render) so the layout doesn't jump between renders.
-const FLOATING_DIGITS = [
-  { digit: 4, left: "6%", delay: "0s", duration: "22s", size: "26px" },
-  { digit: 7, left: "16%", delay: "4s", duration: "26s", size: "20px" },
-  { digit: 2, left: "27%", delay: "8s", duration: "20s", size: "32px" },
-  { digit: 9, left: "40%", delay: "2s", duration: "28s", size: "18px" },
-  { digit: 1, left: "53%", delay: "10s", duration: "23s", size: "28px" },
-  { digit: 6, left: "64%", delay: "5s", duration: "27s", size: "22px" },
-  { digit: 3, left: "77%", delay: "1s", duration: "21s", size: "24px" },
-  { digit: 8, left: "88%", delay: "9s", duration: "29s", size: "20px" },
-  { digit: 5, left: "10%", delay: "13s", duration: "24s", size: "16px" },
-  { digit: 9, left: "70%", delay: "14s", duration: "22s", size: "16px" },
-];
+/** Soft light that follows the pointer across a card (read by .menu-card::before). */
+function trackGlow(e: ReactPointerEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty("--mx", `${e.clientX - r.left}px`);
+  el.style.setProperty("--my", `${e.clientY - r.top}px`);
+}
 
-// Ghost sudoku grids drifting behind everything, at varied sizes/speeds so
-// they read as depth rather than a single flat layer.
-const DRIFTING_GRIDS = [
-  { top: "8%", left: "4%", size: 150, delay: "0s", duration: "48s", spin: "-8deg" },
-  { top: "52%", left: "78%", size: 190, delay: "9s", duration: "62s", spin: "10deg" },
-  { top: "68%", left: "12%", size: 120, delay: "18s", duration: "54s", spin: "6deg" },
-  { top: "18%", left: "68%", size: 110, delay: "27s", duration: "58s", spin: "-12deg" },
-];
-
-/** A faint 9x9 sudoku grid outline, used purely as background texture. */
-function GhostGrid({ size }: { size: number }) {
-  const lines = [];
-  for (let i = 1; i < 9; i++) {
-    const pos = (i / 9) * 100;
-    const thick = i % 3 === 0;
-    lines.push(
-      <line key={`v${i}`} x1={pos} y1="0" x2={pos} y2="100" strokeWidth={thick ? 1.1 : 0.5} />,
-      <line key={`h${i}`} x1="0" y1={pos} x2="100" y2={pos} strokeWidth={thick ? 1.1 : 0.5} />,
+function CardIcon({ kind }: { kind: "liar" | "normal" | "load" | "settings" }) {
+  const common = { width: 26, height: 26, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  if (kind === "liar") {
+    return (
+      <svg {...common}>
+        <rect x="3.5" y="3.5" width="12" height="12" rx="1.5" />
+        <path d="M9.5 3.5v12M3.5 9.5h12" opacity="0.5" />
+        <circle cx="16" cy="16" r="4.2" />
+        <path d="M19.2 19.2 22 22" />
+      </svg>
+    );
+  }
+  if (kind === "normal") {
+    return (
+      <svg {...common}>
+        <rect x="3.5" y="3.5" width="17" height="17" rx="2" />
+        <path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17" opacity="0.55" />
+      </svg>
+    );
+  }
+  if (kind === "load") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M12 7.5V12l3 2" />
+      </svg>
     );
   }
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
-      <rect x="0" y="0" width="100" height="100" fill="none" stroke="currentColor" strokeWidth="1.4" />
-      <g stroke="currentColor">{lines}</g>
+    <svg {...common}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7" />
     </svg>
   );
 }
@@ -125,35 +127,13 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
 
   return (
     <div className="home-shell">
-      <div className="home-bg" aria-hidden="true">
-        <div className="home-bg-glow" />
-        {DRIFTING_GRIDS.map((g, i) => (
-          <div
-            key={i}
-            className="drifting-grid"
-            style={{
-              top: g.top,
-              left: g.left,
-              animationDelay: g.delay,
-              animationDuration: g.duration,
-              ["--spin" as string]: g.spin,
-            }}
-          >
-            <GhostGrid size={g.size} />
-          </div>
-        ))}
-        {FLOATING_DIGITS.map((d, i) => (
-          <span
-            key={i}
-            className="floating-digit"
-            style={{ left: d.left, animationDelay: d.delay, animationDuration: d.duration, fontSize: d.size }}
-          >
-            {d.digit}
-          </span>
-        ))}
-      </div>
-
-      <Professor line={professorLine} emotion="happy" muted={professorMuted} onToggleMute={onToggleProfessorMuted} />
+      <Professor
+        line={professorLine}
+        emotion="happy"
+        muted={professorMuted}
+        onToggleMute={onToggleProfessorMuted}
+        inlineOnMobile
+      />
 
       <div className="home-header">
         <LogoIcon />
@@ -176,24 +156,33 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
       <div className="menu-grid">
         <button
           className="menu-card menu-card-primary"
+          onPointerMove={trackGlow}
           onClick={() => {
             sfx.click();
             onSelectMode("liar");
           }}
           style={{ animationDelay: "0ms" }}
         >
+          <span className="menu-card-icon">
+            <CardIcon kind="liar" />
+          </span>
           <span className="menu-card-title">Liar Sudoku</span>
           <span className="menu-card-desc">One given clue is false. Prove which one, then finish the grid.</span>
+          <span className="menu-card-tag">Featured</span>
         </button>
 
         <button
           className="menu-card"
+          onPointerMove={trackGlow}
           onClick={() => {
             sfx.click();
             onSelectMode("normal");
           }}
           style={{ animationDelay: "70ms" }}
         >
+          <span className="menu-card-icon">
+            <CardIcon kind="normal" />
+          </span>
           <span className="menu-card-title">Normal Sudoku</span>
           <span className="menu-card-desc">Classic rules, no twist. A warm-up, or a change of pace.</span>
         </button>
@@ -201,12 +190,16 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
         {savedGame ? (
           <button
             className="menu-card"
+            onPointerMove={trackGlow}
             onClick={() => {
               sfx.click();
               onLoadGame();
             }}
             style={{ animationDelay: "140ms" }}
           >
+            <span className="menu-card-icon">
+              <CardIcon kind="load" />
+            </span>
             <span className="menu-card-title">Load Game</span>
             <span className="menu-card-desc">Continue: {describeSavedGame(savedGame)} progress.</span>
           </button>
@@ -217,12 +210,18 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
             title="No game in progress yet"
             style={{ animationDelay: "140ms" }}
           >
+            <span className="menu-card-icon">
+              <CardIcon kind="load" />
+            </span>
             <span className="menu-card-title">Load Game</span>
             <span className="menu-card-desc">Nothing to resume yet — start a puzzle and come back to it here.</span>
           </button>
         )}
 
-        <button className="menu-card" onClick={() => setShowSettings(true)} style={{ animationDelay: "210ms" }}>
+        <button className="menu-card" onPointerMove={trackGlow} onClick={() => setShowSettings(true)} style={{ animationDelay: "210ms" }}>
+          <span className="menu-card-icon">
+            <CardIcon kind="settings" />
+          </span>
           <span className="menu-card-title">Settings</span>
           <span className="menu-card-desc">Default difficulty, motion, the professor, and the tutorial.</span>
         </button>

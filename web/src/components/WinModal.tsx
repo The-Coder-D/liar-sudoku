@@ -1,6 +1,7 @@
 import { DIFFICULTY_PRESETS, type Difficulty } from "../engine/difficulty";
 
 interface WinModalProps {
+  mode: "liar" | "normal";
   difficulty: Difficulty;
   time: string;
   mistakes: number;
@@ -14,7 +15,7 @@ const NEXT_TIER: Partial<Record<Difficulty, Difficulty>> = {
   sharp: "extreme",
 };
 
-export function WinModal({ difficulty, time, mistakes, onClose, onPlayAgain, onTryDifficulty }: WinModalProps) {
+export function WinModal({ mode, difficulty, time, mistakes, onClose, onPlayAgain, onTryDifficulty }: WinModalProps) {
   const nextTier = NEXT_TIER[difficulty];
 
   return (
@@ -22,7 +23,8 @@ export function WinModal({ difficulty, time, mistakes, onClose, onPlayAgain, onT
       <div className="modal-panel win-panel" onClick={(e) => e.stopPropagation()}>
         <h2 id="win-title">Solved</h2>
         <p className="modal-lede">
-          The lie is exposed and every digit checks out — on <strong>{DIFFICULTY_PRESETS[difficulty].label}</strong>.
+          {mode === "liar" ? "The lie is exposed and every digit checks out" : "Every digit checks out"} — on{" "}
+          <strong>{DIFFICULTY_PRESETS[difficulty].label}</strong>.
         </p>
 
         <dl className="win-stats">
@@ -31,7 +33,7 @@ export function WinModal({ difficulty, time, mistakes, onClose, onPlayAgain, onT
             <dd>{time}</dd>
           </div>
           <div>
-            <dt>Wrong accusations</dt>
+            <dt>{mode === "liar" ? "Wrong accusations" : "Mistakes caught"}</dt>
             <dd>{mistakes}</dd>
           </div>
         </dl>

@@ -7,7 +7,9 @@ import { SudokuGrid, type CellCoord, type Mode } from "./components/SudokuGrid";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { WinModal } from "./components/WinModal";
 import { Toast } from "./components/Toast";
-import { Professor, type ProfessorEmotion } from "./components/Professor";
+import { Professor, type OwlAction, type ProfessorEmotion } from "./components/Professor";
+import { emitOwl } from "./professorBus";
+import { getCandidates, isCoarsePointer } from "./owlTools";
 import {
   detectCompletedUnits,
   pickRandom,
@@ -38,6 +40,8 @@ import {
   PROFESSOR_RESUMED,
   PROFESSOR_NEW_BEST_TIME,
   PROFESSOR_STREAK_CONTINUED,
+  PROFESSOR_TIPS,
+  PROFESSOR_LIAR_TIPS,
 } from "./professor";
 import { ONBOARDING_KEY } from "./storageKeys";
 import { getDefaultDifficulty } from "./preferences";
@@ -115,6 +119,18 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
   }, [professorMuted]);
   const lastActionRef = useRef(Date.now());
   const hasGreetedRef = useRef(false);
+  // Holds the latest handler closures + relevant state for the keydown listener below.
+  // Updated via a plain assignment after the handlers are defined (see near the bottom
+  // of the "loaded" render path) rather than included in a dependency array, since the
+  // handlers themselves aren't memoized and would otherwise force the listener to be
+  // torn down and re-added on every render.
+  const keyboardStateRef = useRef<{
+    handleCellClick: (row: number, col: number) => void;
+    handleDigit: (digit: number) => void;
+    handleClear: () => void;
+    selected: CellCoord | null;
+    mode: Mode;
+  } | null>(null);
   const noteActivity = () => {
     lastActionRef.current = Date.now();
   };
@@ -271,10 +287,86 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     return () => window.clearInterval(id);
   }, [loading, solved, professorMuted]);
 
+  // Whatever moves the selection (tap, arrow keys, a hint), the owl glances at that cell.
+  useEffect(() => {
+    if (selected) emitOwl({ type: "select", row: selected.row, col: selected.col });
+  }, [selected]);
+
+  // On phones the pinned control bar can cover the status line, so bring a new hint or result
+  // into view (scroll-margin on .message leaves room for the bar). Skips the starting message.
+  const lastMessageRef = useRef(message);
+  useEffect(() => {
+    if (message === lastMessageRef.current) return;
+    lastMessageRef.current = message;
+    if (message === DEFAULT_MESSAGE || !isCoarsePointer()) return;
+    document.querySelector(".message")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [message]);
+
   const dismissOnboarding = () => {
     setShowOnboarding(false);
     window.localStorage.setItem(ONBOARDING_KEY, "1");
   };
+
+  // Keyboard play: arrow keys move the selection, digits fill (or toggle a
+  // note in Notes mode), Backspace/Delete/0 clears, Enter/Space confirms an
+  // accusation on the highlighted cell in Accuse mode, and N toggles Notes.
+  // Disabled entirely while a modal is open so tutorial/win-screen reading
+  // doesn't accidentally trigger game actions.
+  useEffect(() => {
+    if (loading || showOnboarding || showWinModal) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const ref = keyboardStateRef.current;
+      if (!ref) return;
+      const { handleCellClick, handleDigit, handleClear, selected, mode } = ref;
+
+      if (e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        const base = selected ?? { row: 0, col: 0 };
+        let { row, col } = base;
+        if (e.key === "ArrowUp") row = Math.max(0, row - 1);
+        else if (e.key === "ArrowDown") row = Math.min(8, row + 1);
+        else if (e.key === "ArrowLeft") col = Math.max(0, col - 1);
+        else if (e.key === "ArrowRight") col = Math.min(8, col + 1);
+        sfx.select();
+        setSelected({ row, col });
+        return;
+      }
+
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (mode === "accuse" && selected) {
+          handleCellClick(selected.row, selected.col);
+        }
+        return;
+      }
+
+      if (e.key.toLowerCase() === "n" && mode === "fill") {
+        e.preventDefault();
+        noteActivity();
+        setNotesMode((m) => !m);
+        return;
+      }
+
+      if (mode !== "fill") return;
+
+      if (/^[1-9]$/.test(e.key)) {
+        e.preventDefault();
+        if (selected) handleDigit(Number(e.key));
+        return;
+      }
+
+      if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
+        e.preventDefault();
+        handleClear();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, showOnboarding, showWinModal]);
 
   if (loading || !puzzle || !userGrid) {
     return (
@@ -288,6 +380,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
           emotion={professorEmotion}
           muted={professorMuted}
           onToggleMute={onToggleProfessorMuted}
+          inlineOnMobile
         />
       </div>
     );
@@ -302,6 +395,16 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     if (mode === "accuse") {
       if (!isGivenCell(row, col) || liarFound) return;
 
+      // On a touchscreen a stray tap must not cost you an accusation: the first tap only
+      // selects the clue, a second tap on the same clue accuses it.
+      const alreadySelected = selected?.row === row && selected?.col === col;
+      if (isCoarsePointer() && !alreadySelected) {
+        sfx.select();
+        setSelected({ row, col });
+        setMessage("Tap the same clue again to accuse it.");
+        return;
+      }
+
       if (isLiarCell(row, col)) {
         setLiarFound(true);
         const cleared = cloneGrid(userGrid);
@@ -310,6 +413,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
         setMode("fill");
         setSelected({ row, col });
         sfx.accuseCorrect();
+        emitOwl({ type: "cheer" });
         professorSay(PROFESSOR_CORRECT_ACCUSATION, "happy");
         if (mistakes === 0) {
           setMessage(pickRandom(ACCUSE_SUCCESS_FIRST_TRY_MESSAGES));
@@ -325,6 +429,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
         setMessage("Not the lie. Every other clue here is consistent with a valid grid.");
         // After a few misses in a row, switch to more encouraging, hint-pointing lines.
         sfx.wrong();
+        emitOwl({ type: "flinch" });
         professorSay(nextMistakes >= 3 ? PROFESSOR_STRUGGLING : PROFESSOR_WRONG_ACCUSATION, "concerned");
         setTimeout(() => setAccuseWrongCell(null), 400);
       }
@@ -343,11 +448,14 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
 
     if (notesMode) {
       sfx.noteToggle();
+      emitOwl({ type: "note" });
       setPencilMarks((prev) => toggleMark(prev, row, col, digit));
       return;
     }
 
     const isCorrect = digit === puzzle.trueSolution[row][col];
+    // Deliberately says nothing about correctness: a wince on a wrong digit would give the answer away.
+    emitOwl({ type: "place" });
     // Classify the SPECIFIC move the player just made — not just whether it matches
     // whatever cell getFillHint's scan order happens to find first. A grid can have
     // several valid singles at once; this credits any of them fairly.
@@ -379,6 +487,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
       setShowWinModal(true);
       setMessage(`Solved in ${formatTime(elapsedSeconds)} — the lie is exposed and the grid checks out.`);
       sfx.solved();
+      emitOwl({ type: "solved" });
       const { isNewBestTime, streakChanged } = recordSolve("liar", difficulty, elapsedSeconds);
       if (isNewBestTime) {
         professorSay(PROFESSOR_NEW_BEST_TIME, "excited");
@@ -395,6 +504,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     const { cells, labels } = detectCompletedUnits(next, puzzle.trueSolution, row, col);
     if (cells.length > 0) {
       triggerCelebration(cells);
+      emitOwl({ type: "cheer" });
       showToast(toastForCompletedUnits(labels));
       sfx.unitComplete();
       professorSay(PROFESSOR_UNIT_COMPLETE, "happy");
@@ -422,6 +532,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     if (mode !== "fill" || !selected || !isEditable(selected.row, selected.col)) return;
     noteActivity();
     sfx.clear();
+    emitOwl({ type: "clear" });
     if (notesMode) {
       setPencilMarks((prev) => {
         const next = clonePencilMarks(prev);
@@ -437,10 +548,15 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     setFillHintRevealed(false);
   };
 
+  // Plain assignment, not a hook — keeps the keydown listener's closures
+  // fresh every render without needing it to re-subscribe on every keystroke.
+  keyboardStateRef.current = { handleCellClick, handleDigit, handleClear, selected, mode };
+
   const handleAccuseHint = () => {
     if (!accuseChain) return;
     noteActivity();
     sfx.hint();
+    emitOwl({ type: "hint" });
     professorSay(PROFESSOR_HINT_USED);
 
     if (accuseHintIndex < accuseChain.steps.length) {
@@ -475,6 +591,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     }
 
     sfx.hint();
+    emitOwl({ type: "hint" });
     professorSay(PROFESSOR_HINT_USED);
     const hint = getFillHint(puzzle, userGrid);
     if (!hint) {
@@ -512,6 +629,41 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
 
   const filledCount = userGrid.reduce((sum, row) => sum + row.filter((v) => v !== 0).length, 0);
 
+  // What the owl offers when you tap him. Each entry reuses an existing game action, so nothing here
+  // reveals more than the normal buttons do.
+  const owlActions: OwlAction[] = [];
+  if (!solved) {
+    if (mode === "accuse" && !liarFound) {
+      owlActions.push({
+        id: "why-lie",
+        label: "Why is this a lie?",
+        detail: "Walk me through the logic, one step at a time",
+        disabled: accuseFullyRevealed,
+        run: handleAccuseHint,
+      });
+    }
+    if (mode === "fill") {
+      owlActions.push({
+        id: "fits",
+        label: "What fits here?",
+        detail: selected ? "Digits that don't clash with the selected cell" : "Select a cell first",
+        disabled: !selected || !isEditable(selected.row, selected.col),
+        run: () => {
+          if (!selected) return;
+          const options = getCandidates(userGrid, selected.row, selected.col);
+          const where = `Row ${selected.row + 1}, column ${selected.col + 1}`;
+          if (options.length === 0) {
+            return `${where}: nothing fits by the digits showing — a clash somewhere means one of them is off.`;
+          }
+          // Plain row/column/box rule only. Given clues include the lie, so this is "going by what you see".
+          return `${where}: going by the digits showing, ${options.join(", ")} ${options.length === 1 ? "is the only digit" : "could go here"}.`;
+        },
+      });
+      owlActions.push({ id: "hint", label: "Give me a hint", detail: "Reasoning first, digit on request", run: handleFillHint });
+      owlActions.push({ id: "check", label: "Check my entries", detail: "Flags mistakes without showing answers", run: handleCheck });
+    }
+  }
+
   return (
     <div className="app-shell">
       {showOnboarding && <OnboardingModal onDismiss={dismissOnboarding} />}
@@ -521,6 +673,9 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
         emotion={professorEmotion}
         muted={professorMuted}
         onToggleMute={onToggleProfessorMuted}
+        actions={owlActions}
+        tips={[...PROFESSOR_TIPS, ...PROFESSOR_LIAR_TIPS]}
+        inlineOnMobile
       />
       {showWinModal && (
         <WinModal
@@ -580,6 +735,8 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
         />
 
         <aside className="side-panel">
+          {/* On phones this block pins to the bottom of the screen so the number pad stays under your thumb. */}
+          <div className="input-dock">
           <div className="mode-toggle" role="group" aria-label="Mode">
             <button
               className={mode === "accuse" ? "mode-btn mode-btn-active accuse" : "mode-btn"}
@@ -635,10 +792,11 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
           )}
 
           {mode === "fill" && (
-            <button className="btn btn-hint" onClick={handleFillHint}>
+            <button className="btn btn-hint dock-hint-fill" onClick={handleFillHint}>
               {fillHint && !fillHintRevealed ? "Reveal digit" : "Get a hint"}
             </button>
           )}
+          </div>
 
           <p className="message" aria-live="polite">
             {message}
@@ -659,6 +817,17 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
             </div>
           </dl>
 
+          <div
+            className="progress"
+            role="progressbar"
+            aria-label="Grid filled"
+            aria-valuemin={0}
+            aria-valuemax={81}
+            aria-valuenow={filledCount}
+          >
+            <i style={{ width: `${(filledCount / 81) * 100}%` }} />
+          </div>
+
           <div className="legend">
             <span>
               <i className="swatch swatch-given" /> given clue
@@ -670,6 +839,11 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
               <i className="swatch swatch-accuse" /> accusing
             </span>
           </div>
+
+          <p className="keyboard-hint">
+            Keyboard: arrows to move · 1-9 to fill · Backspace to clear · N for notes
+            {mode === "accuse" && " · Enter to accuse"}
+          </p>
 
           {solved && (
             <div className="solved-banner">

@@ -5,7 +5,9 @@ import { buildNormalReferenceGrid, classifyMove, getNormalFillHint, type FillHin
 import { SudokuGrid, type CellCoord } from "./components/SudokuGrid";
 import { WinModal } from "./components/WinModal";
 import { Toast } from "./components/Toast";
-import { Professor, type ProfessorEmotion } from "./components/Professor";
+import { Professor, type OwlAction, type ProfessorEmotion } from "./components/Professor";
+import { emitOwl } from "./professorBus";
+import { getCandidates, isCoarsePointer } from "./owlTools";
 import {
   detectCompletedUnits,
   pickRandom,
@@ -28,6 +30,7 @@ import {
   PROFESSOR_RESUMED,
   PROFESSOR_NEW_BEST_TIME,
   PROFESSOR_STREAK_CONTINUED,
+  PROFESSOR_TIPS,
 } from "./professor";
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
@@ -92,6 +95,16 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
   }, [professorMuted]);
   const lastActionRef = useRef(Date.now());
   const hasGreetedRef = useRef(false);
+
+  // Holds the latest handler closures for the keydown listener below, updated
+  // by a plain assignment after they're defined (past the loading early
+  // return) — see the equivalent comment in LiarSudokuGame.tsx for why.
+  const keyboardStateRef = useRef<{
+    handleDigit: (digit: number) => void;
+    handleClear: () => void;
+    selected: CellCoord | null;
+  } | null>(null);
+
   const noteActivity = () => {
     lastActionRef.current = Date.now();
   };
@@ -219,6 +232,70 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     return () => window.clearInterval(id);
   }, [loading, solved, professorMuted]);
 
+  // Keyboard play: arrow keys move the selection, digits fill (or toggle a
+  // note in Notes mode, handled inside handleDigit itself), Backspace/Delete/0
+  // clears, N toggles Notes. Disabled while the win modal is open.
+  useEffect(() => {
+    if (loading || showWinModal) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const ref = keyboardStateRef.current;
+      if (!ref) return;
+      const { handleDigit, handleClear, selected } = ref;
+
+      if (e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        const base = selected ?? { row: 0, col: 0 };
+        let { row, col } = base;
+        if (e.key === "ArrowUp") row = Math.max(0, row - 1);
+        else if (e.key === "ArrowDown") row = Math.min(8, row + 1);
+        else if (e.key === "ArrowLeft") col = Math.max(0, col - 1);
+        else if (e.key === "ArrowRight") col = Math.min(8, col + 1);
+        sfx.select();
+        setSelected({ row, col });
+        return;
+      }
+
+      if (e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        noteActivity();
+        setNotesMode((m) => !m);
+        return;
+      }
+
+      if (/^[1-9]$/.test(e.key)) {
+        e.preventDefault();
+        if (selected) handleDigit(Number(e.key));
+        return;
+      }
+
+      if (e.key === "Backspace" || e.key === "Delete" || e.key === "0") {
+        e.preventDefault();
+        handleClear();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, showWinModal]);
+
+  // Whatever moves the selection (tap, arrow keys, a hint), the owl glances at that cell.
+  useEffect(() => {
+    if (selected) emitOwl({ type: "select", row: selected.row, col: selected.col });
+  }, [selected]);
+
+  // On phones the pinned control bar can cover the status line, so bring a new hint or result
+  // into view (scroll-margin on .message leaves room for the bar). Skips the starting message.
+  const lastMessageRef = useRef(message);
+  useEffect(() => {
+    if (message === lastMessageRef.current) return;
+    lastMessageRef.current = message;
+    if (message === DEFAULT_MESSAGE || !isCoarsePointer()) return;
+    document.querySelector(".message")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [message]);
+
   if (loading || !puzzle || !solution || !userGrid) {
     return (
       <div className="app-shell">
@@ -231,6 +308,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
           emotion={professorEmotion}
           muted={professorMuted}
           onToggleMute={onToggleProfessorMuted}
+          inlineOnMobile
         />
       </div>
     );
@@ -252,11 +330,14 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
 
     if (notesMode) {
       sfx.noteToggle();
+      emitOwl({ type: "note" });
       setPencilMarks((prev) => toggleMark(prev, row, col, digit));
       return;
     }
 
     const isCorrect = digit === solution[row][col];
+    // Says nothing about correctness, so the owl never gives away a wrong digit.
+    emitOwl({ type: "place" });
     const technique = isCorrect
       ? classifyMove(buildNormalReferenceGrid(puzzle, solution, userGrid), row, col, digit)
       : null;
@@ -285,6 +366,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
       setShowWinModal(true);
       setMessage(`Solved in ${formatTime(elapsedSeconds)} — every digit checks out.`);
       sfx.solved();
+      emitOwl({ type: "solved" });
       const { isNewBestTime, streakChanged } = recordSolve("normal", difficulty, elapsedSeconds);
       if (isNewBestTime) {
         professorSay(PROFESSOR_NEW_BEST_TIME, "excited");
@@ -301,6 +383,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     const { cells, labels } = detectCompletedUnits(next, solution, row, col);
     if (cells.length > 0) {
       triggerCelebration(cells);
+      emitOwl({ type: "cheer" });
       showToast(toastForCompletedUnits(labels));
       sfx.unitComplete();
       professorSay(PROFESSOR_UNIT_COMPLETE, "happy");
@@ -327,6 +410,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     if (!selected || !isEditable(selected.row, selected.col)) return;
     noteActivity();
     sfx.clear();
+    emitOwl({ type: "clear" });
     if (notesMode) {
       setPencilMarks((prev) => {
         const next = clonePencilMarks(prev);
@@ -342,6 +426,9 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     setFillHintRevealed(false);
   };
 
+  // Plain assignment, not a hook — keeps the keydown listener's closures fresh every render.
+  keyboardStateRef.current = { handleDigit, handleClear, selected };
+
   const handleFillHint = () => {
     noteActivity();
     if (fillHint && !fillHintRevealed) {
@@ -352,6 +439,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     }
 
     sfx.hint();
+    emitOwl({ type: "hint" });
     professorSay(PROFESSOR_HINT_USED);
     const hint = getNormalFillHint(puzzle, solution, userGrid);
     if (!hint) {
@@ -393,6 +481,26 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
 
   const filledCount = userGrid.reduce((sum, row) => sum + row.filter((v) => v !== 0).length, 0);
 
+  // What the owl offers when you tap him; each entry reuses an existing game action.
+  const owlActions: OwlAction[] = [];
+  if (!solved) {
+    owlActions.push({
+      id: "fits",
+      label: "What fits here?",
+      detail: selected ? "Digits that don't clash with the selected cell" : "Select a cell first",
+      disabled: !selected || !isEditable(selected.row, selected.col),
+      run: () => {
+        if (!selected) return;
+        const options = getCandidates(userGrid, selected.row, selected.col);
+        const where = `Row ${selected.row + 1}, column ${selected.col + 1}`;
+        if (options.length === 0) return `${where}: nothing fits by the digits showing — one of them must be wrong.`;
+        return `${where}: ${options.join(", ")} ${options.length === 1 ? "is the only digit that fits" : "could go here"}.`;
+      },
+    });
+    owlActions.push({ id: "hint", label: "Give me a hint", detail: "Reasoning first, digit on request", run: handleFillHint });
+    owlActions.push({ id: "check", label: "Check my entries", detail: "Flags mistakes without showing answers", run: handleCheck });
+  }
+
   return (
     <div className="app-shell">
       <Toast toast={toast} />
@@ -401,6 +509,9 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
         emotion={professorEmotion}
         muted={professorMuted}
         onToggleMute={onToggleProfessorMuted}
+        actions={owlActions}
+        tips={PROFESSOR_TIPS}
+        inlineOnMobile
       />
       {showWinModal && (
         <WinModal
@@ -456,6 +567,8 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
         />
 
         <aside className="side-panel">
+          {/* On phones this block pins to the bottom of the screen so the number pad stays under your thumb. */}
+          <div className="input-dock">
           <button
             className={notesMode ? "btn btn-toggle btn-toggle-on notes-toggle" : "btn btn-toggle notes-toggle"}
             onClick={() => {
@@ -478,9 +591,10 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
             </button>
           </div>
 
-          <button className="btn btn-hint" onClick={handleFillHint}>
+          <button className="btn btn-hint dock-hint-fill" onClick={handleFillHint}>
             {fillHint && !fillHintRevealed ? "Reveal digit" : "Get a hint"}
           </button>
+          </div>
 
           <p className="message" aria-live="polite">
             {message}
@@ -501,6 +615,17 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
             </div>
           </dl>
 
+          <div
+            className="progress"
+            role="progressbar"
+            aria-label="Grid filled"
+            aria-valuemin={0}
+            aria-valuemax={81}
+            aria-valuenow={filledCount}
+          >
+            <i style={{ width: `${(filledCount / 81) * 100}%` }} />
+          </div>
+
           <div className="legend">
             <span>
               <i className="swatch swatch-given" /> given clue
@@ -509,6 +634,8 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
               <i className="swatch swatch-entry" /> your entry
             </span>
           </div>
+
+          <p className="keyboard-hint">Keyboard: arrows to move · 1-9 to fill · Backspace to clear · N for notes</p>
 
           {solved && (
             <div className="solved-banner">

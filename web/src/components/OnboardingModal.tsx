@@ -46,6 +46,11 @@ export function OnboardingModal({ onDismiss }: OnboardingModalProps) {
           <p>Gentle, Sharp, or Extreme — fewer clues means a more deeply-buried lie and a harder finish. Extreme occasionally needs reasoning beyond what the hint system knows.</p>
         </div>
 
+        <div className="modal-section">
+          <h3>Mouse optional</h3>
+          <p>Arrow keys move the selection, 1-9 fills, Backspace/Delete clears, N toggles Notes mode, and Enter confirms an accusation on the highlighted clue.</p>
+        </div>
+
         <button className="btn btn-primary modal-dismiss" onClick={onDismiss}>
           Got it, let's play
         </button>

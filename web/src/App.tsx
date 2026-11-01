@@ -4,6 +4,7 @@ import { LiarSudokuGame } from "./LiarSudokuGame";
 import { NormalSudokuGame } from "./NormalSudokuGame";
 import { applyStoredPreferences } from "./preferences";
 import { loadSavedGame, type SavedGame } from "./gameSave";
+import { Backdrop } from "./components/Backdrop";
 
 type Screen = "home" | GameMode;
 
@@ -36,8 +37,11 @@ function App() {
     setScreen(saved.mode);
   };
 
+  const backdropMode = screen === "home" ? "home" : "game";
+
+  let content;
   if (screen === "liar") {
-    return (
+    content = (
       <LiarSudokuGame
         onExit={() => setScreen("home")}
         professorMuted={professorMuted}
@@ -45,10 +49,8 @@ function App() {
         resume={pendingResume?.mode === "liar" ? pendingResume : undefined}
       />
     );
-  }
-
-  if (screen === "normal") {
-    return (
+  } else if (screen === "normal") {
+    content = (
       <NormalSudokuGame
         onExit={() => setScreen("home")}
         professorMuted={professorMuted}
@@ -56,15 +58,23 @@ function App() {
         resume={pendingResume?.mode === "normal" ? pendingResume : undefined}
       />
     );
+  } else {
+    content = (
+      <HomeScreen
+        onSelectMode={handleSelectMode}
+        onLoadGame={handleLoadGame}
+        professorMuted={professorMuted}
+        onToggleProfessorMuted={toggleProfessorMuted}
+      />
+    );
   }
 
+  // The backdrop lives above the screen switch, so it keeps flowing instead of restarting on every navigation.
   return (
-    <HomeScreen
-      onSelectMode={handleSelectMode}
-      onLoadGame={handleLoadGame}
-      professorMuted={professorMuted}
-      onToggleProfessorMuted={toggleProfessorMuted}
-    />
+    <>
+      <Backdrop mode={backdropMode} />
+      {content}
+    </>
   );
 }
 

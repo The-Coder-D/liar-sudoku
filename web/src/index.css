@@ -40,6 +40,13 @@ body {
 
 button {
   font-family: inherit;
+  /* No 300ms double-tap-zoom delay on taps, and no grey flash on iOS. */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 :focus-visible {
@@ -52,6 +59,7 @@ button {
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
 }
@@ -61,5 +69,6 @@ body.reduced-motion-pref *,
 body.reduced-motion-pref *::before,
 body.reduced-motion-pref *::after {
   animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
   transition-duration: 0.001ms !important;
 }

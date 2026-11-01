@@ -1,0 +1,205 @@
+/* ===================================================================
+   Backdrop: the animated scene behind every screen.
+   Everything here animates with transform/opacity only, so it stays on the GPU.
+   =================================================================== */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: radial-gradient(130% 95% at 50% -10%, #152030 0%, #0c1119 55%, #080b11 100%);
+}
+
+/* Slow colour fields that drift past one another. */
+.bd-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+  opacity: 0.7;
+  transition: opacity 900ms ease;
+}
+.bd-blob-teal {
+  width: 78vmax;
+  height: 78vmax;
+  left: -26vmax;
+  top: -30vmax;
+  background: radial-gradient(circle, rgba(79, 166, 156, 0.5), rgba(79, 166, 156, 0) 62%);
+  animation: bd-drift-a 27s ease-in-out infinite alternate;
+}
+.bd-blob-amber {
+  width: 74vmax;
+  height: 74vmax;
+  right: -28vmax;
+  bottom: -34vmax;
+  background: radial-gradient(circle, rgba(201, 138, 59, 0.44), rgba(201, 138, 59, 0) 62%);
+  animation: bd-drift-b 33s ease-in-out infinite alternate;
+}
+.bd-blob-indigo {
+  width: 58vmax;
+  height: 58vmax;
+  left: 28%;
+  top: 38%;
+  background: radial-gradient(circle, rgba(94, 112, 214, 0.3), rgba(94, 112, 214, 0) 62%);
+  animation: bd-drift-c 39s ease-in-out infinite alternate;
+}
+@keyframes bd-drift-a {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(16vmax, 12vmax, 0) scale(1.18); }
+}
+@keyframes bd-drift-b {
+  0% { transform: translate3d(0, 0, 0) scale(1.1); }
+  100% { transform: translate3d(-18vmax, -10vmax, 0) scale(0.92); }
+}
+@keyframes bd-drift-c {
+  0% { transform: translate3d(-8vmax, 6vmax, 0) scale(0.95); }
+  100% { transform: translate3d(14vmax, -12vmax, 0) scale(1.15); }
+}
+
+/* A big sudoku-ruled sheet, panning diagonally. 120px is a whole number of 40px cells and 3x3 boxes,
+   so the loop is seamless, and it moves by transform rather than repainting a background. */
+.bd-grid {
+  position: absolute;
+  inset: -120px;
+  background-image:
+    linear-gradient(rgba(150, 170, 195, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(150, 170, 195, 0.07) 1px, transparent 1px),
+    linear-gradient(rgba(79, 166, 156, 0.15) 2px, transparent 2px),
+    linear-gradient(90deg, rgba(79, 166, 156, 0.15) 2px, transparent 2px);
+  background-size: 40px 40px, 40px 40px, 120px 120px, 120px 120px;
+  -webkit-mask-image: radial-gradient(ellipse 72% 62% at 50% 46%, #000 18%, transparent 78%);
+  mask-image: radial-gradient(ellipse 72% 62% at 50% 46%, #000 18%, transparent 78%);
+  animation: bd-pan 70s linear infinite;
+  will-change: transform;
+}
+@keyframes bd-pan {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(120px, 120px, 0); }
+}
+
+/* A slow shaft of light that sweeps across now and then. */
+.bd-beam {
+  position: absolute;
+  top: -20%;
+  left: -55%;
+  width: 45%;
+  height: 140%;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    rgba(255, 236, 205, 0.04) 40%,
+    rgba(255, 236, 205, 0.1) 50%,
+    rgba(255, 236, 205, 0.04) 60%,
+    transparent
+  );
+  transform: skewX(-18deg);
+  opacity: 0;
+  animation: bd-sweep 19s ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes bd-sweep {
+  0%, 52% { transform: translate3d(0, 0, 0) skewX(-18deg); opacity: 0; }
+  58% { opacity: 1; }
+  96% { opacity: 1; }
+  100% { transform: translate3d(330%, 0, 0) skewX(-18deg); opacity: 0; }
+}
+
+.bd-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* The lamp: follows your pointer, glides to the cell you select. */
+.bd-spot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 900px;
+  height: 900px;
+  margin: -450px 0 0 -450px;
+  background: radial-gradient(circle, rgba(255, 214, 150, 0.16), rgba(255, 214, 150, 0.05) 36%, transparent 64%);
+  will-change: transform;
+}
+
+.bd-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 45%, transparent 52%, rgba(3, 5, 9, 0.68) 100%);
+}
+
+/* Fine film grain so the gradients never band. */
+.bd-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+.bd-flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+}
+.bd-flinch .bd-flash {
+  background: radial-gradient(ellipse at 50% 45%, transparent 38%, rgba(181, 83, 60, 0.42) 100%);
+  animation: bd-flinch 700ms ease;
+}
+@keyframes bd-flinch {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.bd-solved .bd-flash {
+  background: radial-gradient(circle at 50% 45%, rgba(244, 213, 138, 0.3), transparent 62%);
+  animation: bd-bloom 3.6s ease;
+}
+@keyframes bd-bloom {
+  0% { opacity: 0; }
+  14% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* In the game the scene steps back so the board stays the star. */
+.backdrop-game .bd-blob {
+  opacity: 0.42;
+}
+.backdrop-game .bd-grid {
+  opacity: 0.55;
+}
+.backdrop-game .bd-spot {
+  opacity: 0.8;
+}
+.backdrop-game .bd-beam {
+  opacity: 0;
+  animation-play-state: paused;
+}
+
+/* Reduced motion: keep the pretty still frame, drop the movement. */
+.bd-still .bd-blob,
+.bd-still .bd-grid,
+.bd-still .bd-beam {
+  animation: none;
+}
+.bd-still .bd-beam {
+  display: none;
+}
+
+/* Content sits above the scene. */
+.app-shell,
+.home-shell {
+  position: relative;
+  z-index: 1;
+}
+
+/* Celebration sparks float above the page (but under the owl, toast and dialogs). */
+.bd-fx {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 35;
+  pointer-events: none;
+}

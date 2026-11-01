@@ -130,3 +130,46 @@ export const PROFESSOR_STREAK_CONTINUED = [
   "Another day, another solve. That streak isn't building itself.",
   "Consistency. That's the real skill, if you ask me.",
 ];
+
+// ---- Interactive owl: reactions to how you're playing (not to right/wrong) ----
+
+export const PROFESSOR_ROLL = [
+  "Look at you go. Quick hands.",
+  "Fast and steady — I like it.",
+  "You're on a roll. Don't mind me.",
+];
+
+export const PROFESSOR_DWELL = [
+  "That cell's got you staring. Tap me — I can tell you what fits there.",
+  "Stuck on one cell? Tap me and ask what could go there.",
+  "Long look at that one. I'm happy to help if you tap me.",
+];
+
+export const PROFESSOR_YAWN = ["Zzz…", "Zzz… just resting my eyes…"];
+
+export const PROFESSOR_WAKE = [
+  "Oh! Hm? I wasn't sleeping. Just thinking.",
+  "Ah — you're back. Where were we?",
+  "*blinks* Right. Carry on.",
+];
+
+export const PROFESSOR_POKE = [
+  "Hoo! That tickles.",
+  "Yes, yes, I'm listening.",
+  "Careful with the feathers.",
+  "I'm a professor, not a perch.",
+];
+
+export const PROFESSOR_TIPS = [
+  "Pick a digit and hunt for it across the whole board — which boxes can't hold it yet?",
+  "Check each row, column and box for a single gap. Those are the easy wins.",
+  "Use Notes for cells with only two or three options. It pays off fast.",
+  "If every other spot in a box is ruled out for a digit, the last spot is the answer.",
+  "Take a short break and look again — fresh eyes spot what tired ones miss.",
+];
+
+export const PROFESSOR_LIAR_TIPS = [
+  "A clue that makes some cell impossible to fill is a very good suspect.",
+  "Only one clue lies. If two clues agree with each other, they're probably both honest.",
+  "Try pretending a clue is true and follow what it forces. A contradiction means you've found your liar.",
+];

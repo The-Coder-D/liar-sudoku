@@ -164,9 +164,13 @@
 
 .sudoku-grid {
   display: grid;
-  grid-template-columns: repeat(9, 46px);
-  grid-template-rows: repeat(9, 46px);
+  --cell: 46px;
+  grid-template-columns: repeat(9, var(--cell));
+  grid-template-rows: repeat(9, var(--cell));
   background: var(--color-border);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   gap: 1px;
   border: 2px solid var(--color-border-strong);
   border-radius: 4px;
@@ -193,7 +197,7 @@
   background: var(--color-panel);
   border: none;
   font-family: var(--font-mono);
-  font-size: 20px;
+  font-size: calc(var(--cell, 46px) * 0.43);
   font-weight: 500;
   color: var(--color-user-entry);
   display: flex;
@@ -228,15 +232,9 @@
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: max(7px, calc(var(--cell, 46px) * 0.2));
   line-height: 1;
   color: var(--color-text-dim);
-}
-
-@media (max-width: 640px) {
-  .pencil-digit {
-    font-size: 7px;
-  }
 }
 
 .border-right-strong {
@@ -406,6 +404,11 @@
   border-color: var(--color-accent-truth);
 }
 
+.number-pad-notes .num-btn:not(.num-btn-clear) {
+  border-color: var(--color-accent-accuse);
+  color: var(--color-accent-accuse);
+}
+
 .num-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -469,6 +472,14 @@
   height: 10px;
   border-radius: 2px;
   display: inline-block;
+}
+
+.keyboard-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--color-text-dim);
+  opacity: 0.75;
+  line-height: 1.5;
 }
 
 .swatch-given {
@@ -1251,16 +1262,426 @@
   font-style: italic;
 }
 
+
+/* ===================================================================
+   Interactive professor: gestures, poses, tap menu
+   =================================================================== */
+
+.professor-avatar {
+  position: relative;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.professor-asleep .professor-avatar {
+  animation-play-state: paused;
+  border-color: var(--color-border);
+}
+
+.professor-asleep .professor-wing {
+  animation: none;
+}
+
+/* One gesture per mood. The face remounts on every reaction, so each plays once. */
+.professor-face-wrap[data-gesture="nod"] {
+  animation: owl-nod 520ms ease;
+}
+.professor-face-wrap[data-gesture="shake"] {
+  animation: owl-shake 560ms ease;
+}
+.professor-face-wrap[data-gesture="tilt"] {
+  animation: owl-tilt 650ms ease;
+}
+.professor-face-wrap[data-gesture="cheer"] {
+  animation: owl-cheer 850ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.professor-face-wrap[data-gesture="hop"] {
+  animation: owl-hop 460ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.professor-face-wrap[data-gesture="droop"] {
+  animation: owl-droop 800ms ease;
+}
+.professor-face-wrap[data-gesture="sleep"] {
+  animation: owl-sleep-bob 3.4s ease-in-out infinite;
+}
+
+@keyframes owl-nod {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(4px) rotate(3deg); }
+  60% { transform: translateY(-1px) rotate(-1deg); }
+}
+@keyframes owl-shake {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20% { transform: translateX(-4px) rotate(-6deg); }
+  45% { transform: translateX(4px) rotate(6deg); }
+  70% { transform: translateX(-2px) rotate(-3deg); }
+}
+@keyframes owl-tilt {
+  0% { transform: rotate(0deg) scale(1); }
+  40% { transform: rotate(-7deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+@keyframes owl-cheer {
+  0% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-9px) scale(1.14); }
+  55% { transform: translateY(1px) scale(0.97); }
+  75% { transform: translateY(-4px) scale(1.05); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes owl-hop {
+  0% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-11px) scale(1.1); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes owl-droop {
+  0% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(3px) scale(0.96) rotate(-2deg); }
+  100% { transform: translateY(0) scale(1) rotate(0deg); }
+}
+@keyframes owl-sleep-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(3px) rotate(2deg); }
+}
+
+/* Cheer pose: both wings thrown up and flapping fast. */
+.owl-pose-cheer .professor-wing-left {
+  animation: wing-cheer-left 0.5s ease-in-out infinite;
+}
+.owl-pose-cheer .professor-wing-right {
+  animation: wing-cheer-right 0.5s ease-in-out infinite;
+}
+@keyframes wing-cheer-left {
+  0%, 100% { transform: rotate(46deg); }
+  50% { transform: rotate(64deg); }
+}
+@keyframes wing-cheer-right {
+  0%, 100% { transform: rotate(-46deg); }
+  50% { transform: rotate(-64deg); }
+}
+
+/* A quick head nod each time a digit is placed. */
+.owl-head-nod {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: owl-head-nod 380ms ease;
+}
+@keyframes owl-head-nod {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  40% { transform: translateY(2.5px) rotate(2deg); }
+}
+
+.owl-zzz {
+  opacity: 0;
+  animation: owl-zzz 2.6s ease-in-out infinite;
+}
+.owl-zzz-b {
+  animation-delay: 1.3s;
+}
+@keyframes owl-zzz {
+  0% { opacity: 0; transform: translate(0, 4px); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translate(4px, -6px); }
+}
+
+.owl-sparkle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: owl-sparkle 1.4s ease-in-out infinite;
+}
+.owl-sparkle-b {
+  animation-delay: 0.7s;
+}
+@keyframes owl-sparkle {
+  0%, 100% { transform: scale(0.35) rotate(0deg); opacity: 0.4; }
+  50% { transform: scale(1) rotate(45deg); opacity: 1; }
+}
+
+.owl-tear {
+  transform-box: fill-box;
+  animation: owl-tear 2.2s ease-in infinite;
+}
+@keyframes owl-tear {
+  0% { transform: translateY(0); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(7px); opacity: 0; }
+}
+
+/* "tap me" nudge until the menu has been opened once. */
+.professor-badge {
+  position: absolute;
+  top: -8px;
+  left: -6px;
+  background: var(--color-accent-truth);
+  color: #0d1210;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+  border-radius: 999px;
+  pointer-events: none;
+  animation: badge-pulse 1.8s ease-in-out infinite;
+}
+@keyframes badge-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+.professor-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 250px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-panel);
+  border: 1px solid var(--color-accent-truth);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: bubble-in 180ms ease;
+}
+
+.professor-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.professor-menu-item:hover:not(:disabled),
+.professor-menu-item:focus-visible {
+  background: var(--color-accent-truth-dim);
+}
+.professor-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.professor-menu-label {
+  font-size: 14px;
+  font-weight: 600;
+}
+.professor-menu-detail {
+  font-size: 12px;
+  color: var(--color-text-dim);
+  line-height: 1.35;
+}
+
+/* The pad/hint block is a plain column on desktop, exactly as before. */
+.input-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ===================================================================
+   Phones and small tablets
+   =================================================================== */
+
 @media (max-width: 640px) {
-  .sudoku-grid {
-    grid-template-columns: repeat(9, 34px);
-    grid-template-rows: repeat(9, 34px);
+  .app-shell {
+    padding: 12px max(14px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+    gap: 12px;
   }
-  .cell {
-    font-size: 16px;
+
+  /* Compact header: title left, buttons right, no tagline. */
+  .app-header {
+    order: 1;
+    align-items: center;
+    gap: 8px;
+  }
+  .app-header h1 {
+    font-size: 21px;
+  }
+  .tagline {
+    display: none;
+  }
+  .header-actions {
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .header-actions .btn {
+    min-height: 40px;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+  .difficulty-toggle {
+    order: 2;
+    gap: 6px;
+  }
+  .difficulty-btn {
+    min-height: 40px;
+    padding: 0;
+  }
+  /* One column: grid, status line, pinned controls, then stats. The side panel dissolves into it
+     so the controls can pin to the screen bottom for the whole length of the board area. */
+  .board-area {
+    order: 4;
+    width: 100%;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 12px;
   }
   .side-panel {
+    display: contents;
+  }
+  .side-panel > * {
+    order: 3;
     width: 100%;
-    max-width: 340px;
+    max-width: 420px;
+  }
+  .board-area > .sudoku-grid {
+    order: 0;
+  }
+
+  /* The grid takes the whole width minus gutters, borders and the 8 hairline gaps. */
+  .sudoku-grid {
+    --cell: clamp(30px, calc((100vw - 28px - 12px) / 9), 46px);
+  }
+
+  /* The status line sits right under the grid so hints are read without scrolling. */
+  .side-panel > .message {
+    order: 1;
+    min-height: 0;
+    scroll-margin-bottom: 184px;
+  }
+
+  /* Mode toggle, notes, hint and the number pad pin to the bottom of the screen, under the thumb. */
+  .side-panel > .input-dock {
+    order: 2;
+    position: sticky;
+    bottom: 0;
+    z-index: 30;
+    display: grid;
+    grid-template-columns: repeat(9, 1fr);
+    gap: 6px;
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+    box-shadow: 0 -10px 18px rgba(0, 0, 0, 0.35);
+  }
+  .input-dock .mode-toggle {
+    grid-column: 1 / -1;
+  }
+  .input-dock .mode-btn {
+    min-height: 40px;
+  }
+  .input-dock > .btn-hint {
+    grid-column: 1 / -1;
+    min-height: 40px;
+  }
+  .input-dock .notes-toggle {
+    grid-row: 2;
+    grid-column: 1 / span 3;
+    min-height: 40px;
+    padding: 6px 4px;
+    font-size: 13px;
+  }
+  .input-dock > .dock-hint-fill {
+    grid-row: 2;
+    grid-column: 4 / span 3;
+    padding: 6px 4px;
+    font-size: 13px;
+  }
+  /* The pad's buttons join the dock grid directly: 1-9 in one row, Clear beside Hint. */
+  .input-dock .number-pad {
+    display: contents;
+  }
+  .input-dock .num-btn {
+    min-height: 44px;
+    padding: 0;
+    touch-action: manipulation;
+  }
+  .input-dock .num-btn-clear {
+    grid-row: 2;
+    grid-column: 7 / span 3;
+    font-size: 13px;
+  }
+
+  /* Phone fingers don't use the keyboard. */
+  .keyboard-hint {
+    display: none;
+  }
+
+  /* The owl moves out of the way: a compact row between the difficulty picker and the board. */
+  .professor.professor-inline {
+    position: relative;
+    inset: auto;
+    order: 3;
+    width: 100%;
+    max-width: 420px;
+    flex-direction: row-reverse;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    z-index: 45;
+  }
+  .professor-inline .professor-avatar {
+    width: 54px;
+    height: 54px;
+    padding: 4px;
+  }
+  .professor-inline .professor-bubble {
+    flex: 1;
+    max-width: none;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 12px;
+    border-radius: 14px;
+    border-bottom-right-radius: 14px;
+    border-bottom-left-radius: 4px;
+    box-shadow: none;
+  }
+  .professor-inline .professor-menu {
+    top: calc(100% + 6px);
+    bottom: auto;
+    left: 0;
+    right: 0;
+    width: auto;
+  }
+
+  /* Floating owl on the home screen: keep the menu cards clear of it. */
+  .home-shell {
+    padding-bottom: 96px;
+  }
+  .professor:not(.professor-inline) .professor-menu {
+    width: min(250px, calc(100vw - 32px));
+  }
+
+  .toast {
+    max-width: calc(100vw - 24px);
+    white-space: normal;
+    text-align: center;
+    top: calc(12px + env(safe-area-inset-top));
+  }
+
+  .modal-overlay {
+    padding: 12px;
+  }
+  .modal-panel {
+    padding: 20px;
+    max-height: 90dvh;
+  }
+}
+
+/* Small phones: shave the header further. */
+@media (max-width: 380px) {
+  .header-actions .btn {
+    padding: 8px 9px;
+    font-size: 12px;
+  }
+  .app-header h1 {
+    font-size: 19px;
   }
 }

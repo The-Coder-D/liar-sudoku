@@ -52,6 +52,10 @@ export function SudokuGrid({
   pencilMarks,
   onCellClick,
 }: SudokuGridProps) {
+  // The selected cell lights up its row, column and box, and every other cell holding the same digit,
+  // so you can read the board at a glance. This is plain geometry plus what's already on screen.
+  const selValue = selected ? userGrid[selected.row][selected.col] : 0;
+
   return (
     <div
       className={celebratingCells.size > 0 ? "sudoku-grid celebrating" : "sudoku-grid"}
@@ -71,6 +75,14 @@ export function SudokuGrid({
           const celebrateDelay = celebratingCells.get(`${r}-${c}`);
           const isCelebrating = celebrateDelay !== undefined;
           const marks = value === 0 ? pencilMarks.get(`${r}-${c}`) : undefined;
+          const isPeer =
+            selected !== null &&
+            !isSelected &&
+            (selected.row === r ||
+              selected.col === c ||
+              (Math.floor(selected.row / 3) === Math.floor(r / 3) && Math.floor(selected.col / 3) === Math.floor(c / 3)));
+          const isSameDigit = selected !== null && !isSelected && selValue !== 0 && value === selValue;
+          const isAltBox = (Math.floor(r / 3) + Math.floor(c / 3)) % 2 === 1;
 
           const classes = [
             "cell",
@@ -79,6 +91,9 @@ export function SudokuGrid({
             isGiven ? "cell-given" : "",
             isUserEntry ? "cell-user" : "",
             isSelected ? "cell-selected" : "",
+            isPeer ? "cell-peer" : "",
+            isSameDigit ? "cell-same" : "",
+            isAltBox ? "cell-alt" : "",
             isWrong ? "cell-wrong" : "",
             isShaking ? "cell-shake" : "",
             isAccusable ? "cell-accusable" : "",
