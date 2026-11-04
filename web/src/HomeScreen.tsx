@@ -1,4 +1,5 @@
-import { useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { exportBackup, importBackup } from "./backup";
 import { Professor } from "./components/Professor";
 import { PROFESSOR_HOME_LINES } from "./professor";
 import { pickRandom } from "./celebrations";
@@ -118,6 +119,15 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
   const [volume, setVolumeState] = useState(() => getSoundVolume());
   const [hapticsOn, setHapticsOnState] = useState(() => getHapticsEnabled());
   const { pwa, available: installAvailable } = useInstallAvailable();
+
+  const backupInput = useRef<HTMLInputElement>(null);
+  const [backupNote, setBackupNote] = useState<string | null>(null);
+  const onBackupFile = async (file: File | undefined) => {
+    if (!file) return;
+    const result = await importBackup(file);
+    setBackupNote(result.message);
+    if (result.ok) window.setTimeout(() => window.location.reload(), 900);
+  };
 
   const changeVolume = (v: number) => {
     setSoundVolume(v);
@@ -402,6 +412,35 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
               >
                 {professorMuted ? "Off" : "On"}
               </button>
+            </div>
+
+            <div className="settings-row">
+              <div>
+                <strong>Back up progress</strong>
+                <p className="settings-row-desc">
+                  {backupNote ?? "Save your stats and current game to a file, or restore them on another device."}
+                </p>
+              </div>
+              <div className="backup-actions">
+                <button className="btn btn-secondary" onClick={exportBackup}>
+                  Export
+                </button>
+                <button className="btn btn-secondary" onClick={() => backupInput.current?.click()}>
+                  Import
+                </button>
+                <input
+                  ref={backupInput}
+                  className="visually-hidden-input"
+                  type="file"
+                  accept="application/json,.json"
+                  aria-label="Import backup file"
+                  tabIndex={-1}
+                  onChange={(e) => {
+                    void onBackupFile(e.target.files?.[0]);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
             </div>
 
             <div className="settings-row">

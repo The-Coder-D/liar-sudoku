@@ -42,19 +42,44 @@ function emptyStats(): Stats {
   };
 }
 
+const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback);
+
+function sanitizeDifficultyStats(v: unknown): DifficultyStats {
+  const o = (v ?? {}) as Record<string, unknown>;
+  const best = o.bestTimeSeconds;
+  return { solved: Math.floor(num(o.solved)), bestTimeSeconds: typeof best === "number" && Number.isFinite(best) && best > 0 ? best : null };
+}
+
+function sanitizeModeStats(v: unknown): ModeStats {
+  const o = (v ?? {}) as Record<string, unknown>;
+  return { gentle: sanitizeDifficultyStats(o.gentle), sharp: sanitizeDifficultyStats(o.sharp), extreme: sanitizeDifficultyStats(o.extreme) };
+}
+
+/** Rebuilds a valid Stats from anything (old saves, hand-edited JSON, imported files). Never throws. */
+export function sanitizeStats(input: unknown): Stats {
+  const o = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const date = o.lastSolvedDate;
+  return {
+    liar: sanitizeModeStats(o.liar),
+    normal: sanitizeModeStats(o.normal),
+    totalSolved: Math.floor(num(o.totalSolved)),
+    currentStreak: Math.floor(num(o.currentStreak)),
+    longestStreak: Math.floor(num(o.longestStreak)),
+    lastSolvedDate: typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null,
+  };
+}
+
 export function loadStats(): Stats {
   try {
     const raw = window.localStorage.getItem(STATS_KEY);
     if (!raw) return emptyStats();
-    const parsed = JSON.parse(raw) as Partial<Stats>;
-    // Merge over a fresh default so an older/partial shape never crashes a read.
-    return { ...emptyStats(), ...parsed };
+    return sanitizeStats(JSON.parse(raw));
   } catch {
     return emptyStats();
   }
 }
 
-function saveStats(stats: Stats): void {
+export function saveStats(stats: Stats): void {
   try {
     window.localStorage.setItem(STATS_KEY, JSON.stringify(stats));
   } catch {

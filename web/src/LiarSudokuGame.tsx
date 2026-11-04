@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloneGrid, gridsEqual, type Grid } from "./engine/sudoku";
 import { type LiarPuzzle } from "./engine/liarGenerator";
-import { DIFFICULTY_PRESETS, generatePuzzleForDifficulty, type Difficulty } from "./engine/difficulty";
+import { DIFFICULTY_PRESETS, type Difficulty } from "./engine/difficulty";
+import { generateLiarAsync } from "./puzzleClient";
 import { getAccusationChain, getFillHint, buildReferenceGrid, classifyMove, type AccusationChain, type FillHint } from "./engine/hints";
 import { SudokuGrid, type CellCoord, type Mode } from "./components/SudokuGrid";
 import { OnboardingModal } from "./components/OnboardingModal";
@@ -47,6 +48,8 @@ import { ONBOARDING_KEY } from "./storageKeys";
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
 import { haptic } from "./haptics";
+import { useUndoRedo } from "./undoRedo";
+import { UndoRow } from "./components/UndoRow";
 import { recordSolve } from "./stats";
 import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
 import {
@@ -102,6 +105,17 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
   const [fillHintRevealed, setFillHintRevealed] = useState(false);
 
   const [pencilMarks, setPencilMarks] = useState<PencilMarksType>(new Map());
+
+  const { undo, redo, canUndo, canRedo } = useUndoRedo(userGrid, pencilMarks, setUserGrid, setPencilMarks, puzzle, !solved && !loading);
+  const handleUndo = () => {
+    if (undo()) {
+      setWrongFillCells(new Set());
+      emitOwl({ type: "clear" });
+    }
+  };
+  const handleRedo = () => {
+    if (redo()) setWrongFillCells(new Set());
+  };
   const [notesMode, setNotesMode] = useState(false);
 
   // Cells currently playing the "unit completed" pulse animation, mapped to a stagger delay in ms.
@@ -157,6 +171,8 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     window.setTimeout(() => setCelebratingCells(new Map()), 700 + cells.length * 35);
   };
 
+  const puzzleRequestRef = useRef(0);
+
   const startNewPuzzle = useCallback((targetDifficulty: Difficulty) => {
     setLoading(true);
     setSolved(false);
@@ -183,10 +199,10 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
       setProfessorEmotion("thinking");
     }
 
-    // Let the loading state paint before the (occasionally slow) generation runs.
-    // TODO: move this to a Web Worker so the UI thread never blocks at all.
-    setTimeout(() => {
-      const { puzzle: result, actualClueCount, fellBack } = generatePuzzleForDifficulty(targetDifficulty);
+    // Generation runs in a Web Worker; if the player starts another puzzle meanwhile, the older result is dropped.
+    const requestId = ++puzzleRequestRef.current;
+    void generateLiarAsync(targetDifficulty).then(({ puzzle: result, actualClueCount, fellBack }) => {
+      if (requestId !== puzzleRequestRef.current) return;
       setPuzzle(result);
       setUserGrid(cloneGrid(result.puzzle));
       setAccuseChain(getAccusationChain(result));
@@ -206,7 +222,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
           ? `Couldn't build a fair "${DIFFICULTY_PRESETS[targetDifficulty].label}" puzzle in time, so this one has ${actualClueCount} clues instead of the usual ${DIFFICULTY_PRESETS[targetDifficulty].clueCount}. Still fully fair — try again for another shot.`
           : DEFAULT_MESSAGE,
       );
-    }, 50);
+    });
   }, []);
 
   useEffect(() => {
@@ -801,6 +817,8 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
               {fillHint && !fillHintRevealed ? "Reveal digit" : "Get a hint"}
             </button>
           )}
+
+          {mode === "fill" && <UndoRow canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo} />}
           </div>
 
           <p className="message" aria-live="polite">

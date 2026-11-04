@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cloneGrid, gridsEqual, type Grid } from "./engine/sudoku";
-import { generateNormalPuzzle, DIFFICULTY_PRESETS, type Difficulty } from "./engine/difficulty";
+import { DIFFICULTY_PRESETS, type Difficulty } from "./engine/difficulty";
+import { generateNormalAsync } from "./puzzleClient";
 import { buildNormalReferenceGrid, classifyMove, getNormalFillHint, type FillHint } from "./engine/hints";
 import { SudokuGrid, type CellCoord } from "./components/SudokuGrid";
 import { WinModal } from "./components/WinModal";
@@ -35,6 +36,8 @@ import {
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
 import { haptic } from "./haptics";
+import { useUndoRedo } from "./undoRedo";
+import { UndoRow } from "./components/UndoRow";
 import { recordSolve } from "./stats";
 import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
 import {
@@ -81,6 +84,17 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
   const [fillHintRevealed, setFillHintRevealed] = useState(false);
 
   const [pencilMarks, setPencilMarks] = useState<PencilMarksType>(new Map());
+
+  const { undo, redo, canUndo, canRedo } = useUndoRedo(userGrid, pencilMarks, setUserGrid, setPencilMarks, puzzle, !solved && !loading);
+  const handleUndo = () => {
+    if (undo()) {
+      setWrongFillCells(new Set());
+      emitOwl({ type: "clear" });
+    }
+  };
+  const handleRedo = () => {
+    if (redo()) setWrongFillCells(new Set());
+  };
   const [notesMode, setNotesMode] = useState(false);
 
   const [celebratingCells, setCelebratingCells] = useState<Map<string, number>>(new Map());
@@ -131,6 +145,8 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     window.setTimeout(() => setCelebratingCells(new Map()), 700 + cells.length * 35);
   };
 
+  const puzzleRequestRef = useRef(0);
+
   const startNewPuzzle = useCallback((targetDifficulty: Difficulty) => {
     setLoading(true);
     setSolved(false);
@@ -148,10 +164,9 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
     setSolvedTime(null);
     noteActivity();
 
-    // Classic generation is fast (no fairness-proof loop like the liar mechanic needs),
-    // so a brief timeout is just to let the loading state paint, not a real wait.
-    setTimeout(() => {
-      const result = generateNormalPuzzle(targetDifficulty);
+    const requestId = ++puzzleRequestRef.current;
+    void generateNormalAsync(targetDifficulty).then((result) => {
+      if (requestId !== puzzleRequestRef.current) return;
       setPuzzle(result.puzzle);
       setSolution(result.solution);
       setUserGrid(cloneGrid(result.puzzle));
@@ -167,7 +182,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
         }
       }
       setMessage(DEFAULT_MESSAGE);
-    }, 30);
+    });
   }, []);
 
   useEffect(() => {
@@ -598,6 +613,8 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
           <button className="btn btn-hint dock-hint-fill" onClick={handleFillHint}>
             {fillHint && !fillHintRevealed ? "Reveal digit" : "Get a hint"}
           </button>
+
+          <UndoRow canUndo={canUndo} canRedo={canRedo} onUndo={handleUndo} onRedo={handleRedo} />
           </div>
 
           <p className="message" aria-live="polite">
