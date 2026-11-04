@@ -1,9 +1,12 @@
 import type { Difficulty } from "./engine/difficulty";
-import { setSoundMuted } from "./sound";
+import { setMasterVolume, setSoundMuted } from "./sound";
+import { setHapticsOn } from "./haptics";
 
 const DEFAULT_DIFFICULTY_KEY = "liar-sudoku-default-difficulty";
 const REDUCE_MOTION_KEY = "liar-sudoku-reduce-motion";
 const SOUND_KEY = "liar-sudoku-sound";
+const VOLUME_KEY = "liar-sudoku-volume";
+const HAPTICS_KEY = "liar-sudoku-haptics";
 
 export function getDefaultDifficulty(): Difficulty {
   try {
@@ -65,8 +68,49 @@ export function setSoundEnabled(enabled: boolean): void {
   setSoundMuted(!enabled);
 }
 
+export function getSoundVolume(): number {
+  try {
+    const raw = window.localStorage.getItem(VOLUME_KEY);
+    if (raw !== null) {
+      const n = Number(raw);
+      if (Number.isFinite(n)) return Math.min(1, Math.max(0, n));
+    }
+  } catch {
+    // fall through
+  }
+  return 0.8;
+}
+
+export function setSoundVolume(value: number): void {
+  try {
+    window.localStorage.setItem(VOLUME_KEY, String(value));
+  } catch {
+    // Best-effort.
+  }
+  setMasterVolume(value);
+}
+
+export function getHapticsEnabled(): boolean {
+  try {
+    return window.localStorage.getItem(HAPTICS_KEY) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function setHapticsEnabled(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(HAPTICS_KEY, enabled ? "1" : "0");
+  } catch {
+    // Best-effort.
+  }
+  setHapticsOn(enabled);
+}
+
 /** Call once on app startup so runtime state matches stored preferences immediately. */
 export function applyStoredPreferences(): void {
   document.body.classList.toggle("reduced-motion-pref", getReduceMotion());
   setSoundMuted(!getSoundEnabled());
+  setMasterVolume(getSoundVolume());
+  setHapticsOn(getHapticsEnabled());
 }

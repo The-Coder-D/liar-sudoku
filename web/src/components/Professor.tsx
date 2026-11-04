@@ -170,6 +170,7 @@ export function Professor({
     setSleeping(false);
     showFace("surprised");
     say(pickRandom(PROFESSOR_WAKE));
+    if (!mutedRef.current) sfx.wake();
   }, [say, showFace]);
 
   const markActive = useCallback(() => {
@@ -289,6 +290,7 @@ export function Professor({
       setSleeping(true);
       showFace("sleepy", 0);
       say(pickRandom(PROFESSOR_YAWN));
+      if (!mutedRef.current) sfx.yawn();
     }, 5000);
     return () => window.clearInterval(id);
   }, [say, showFace]);
@@ -338,7 +340,7 @@ export function Professor({
       setMenuOpen(false);
       showFace("surprised");
       say(pickRandom(PROFESSOR_POKE), true);
-      if (!mutedRef.current) sfx.chirp();
+      if (!mutedRef.current) sfx.hoot();
       return;
     }
     setMenuOpen((open) => !open);

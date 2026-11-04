@@ -46,6 +46,7 @@ import {
 import { ONBOARDING_KEY } from "./storageKeys";
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
+import { haptic } from "./haptics";
 import { recordSolve } from "./stats";
 import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
 import {
@@ -428,7 +429,8 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
         setAccuseWrongCell({ row, col });
         setMessage("Not the lie. Every other clue here is consistent with a valid grid.");
         // After a few misses in a row, switch to more encouraging, hint-pointing lines.
-        sfx.wrong();
+        sfx.accuseWrong();
+        haptic.wrong();
         emitOwl({ type: "flinch" });
         professorSay(nextMistakes >= 3 ? PROFESSOR_STRUGGLING : PROFESSOR_WRONG_ACCUSATION, "concerned");
         setTimeout(() => setAccuseWrongCell(null), 400);
@@ -462,6 +464,7 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
     const technique = isCorrect ? classifyMove(buildReferenceGrid(puzzle, userGrid), row, col, digit) : null;
     const wasHintAlreadyRevealedHere = fillHint && fillHint.row === row && fillHint.col === col && fillHintRevealed;
 
+    haptic.place();
     if (isCorrect) sfx.place();
     else sfx.wrong();
 
@@ -489,7 +492,9 @@ export function LiarSudokuGame({ onExit, professorMuted, onToggleProfessorMuted,
       sfx.solved();
       emitOwl({ type: "solved" });
       const { isNewBestTime, streakChanged } = recordSolve("liar", difficulty, elapsedSeconds);
+      haptic.solved();
       if (isNewBestTime) {
+        window.setTimeout(() => sfx.newBest(), 1700);
         professorSay(PROFESSOR_NEW_BEST_TIME, "excited");
       } else if (streakChanged) {
         professorSay(PROFESSOR_STREAK_CONTINUED, "excited");

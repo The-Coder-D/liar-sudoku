@@ -146,6 +146,26 @@ app-wide, layered on top of — not instead of — respecting the OS-level
 `prefers-reduced-motion` setting), muting the professor, and replaying the
 Liar Sudoku tutorial.
 
+## Background and visual layer
+
+Every screen sits on an animated scene (`web/src/components/Backdrop.tsx`
+and `backdrop.css`): drifting colour fields, a slowly panning sudoku-ruled
+sheet, an occasional light beam, and a canvas of depth-layered digits and
+dust that scatter away from your finger or cursor. A lamp-like spotlight
+follows the pointer and glides to the cell you select. It reacts to play —
+sparks when a row/column/box completes or the liar is caught, a bloom of
+light and a burst of digits on a solve, a red flinch on a wrong accusation.
+It never reacts to whether an ordinary entry is right (same rule as the
+professor). It pauses when the tab is hidden, thins itself out if frames run
+slow, and freezes to a single still frame under reduced motion (OS setting
+or the Settings toggle).
+
+`web/src/polish.css` is the styling layer on top (glass panels, buttons,
+stat tiles, board highlights). It loads after `App.css` and only restyles, so
+deleting it and its import in `main.tsx` restores the previous look. The
+board also highlights the selected cell's row, column and box, and every
+other cell holding the same digit.
+
 ## The professor
 
 A companion character (owl-motif avatar, in the same suspicion/truth color
@@ -248,3 +268,16 @@ card once a save exists, showing which game and how far into it you were.
   prototype; should move to a Web Worker or a backend endpoint later.
 - A daily puzzle (same seed for everyone, once per day) — the single
   biggest lever left for making people come back tomorrow specifically.
+
+## Install and offline play (PWA)
+
+The game is an installable web app. `web/public/manifest.webmanifest` and `web/public/sw.js` (plus `icons/`) make browsers offer "Install", and the service worker caches the game so it opens with no connection.
+
+- Needs **HTTPS** (or localhost) to install; any static host works (Netlify, Vercel, GitHub Pages, Cloudflare Pages).
+- Android/desktop Chrome and Edge: the "Install" pill on Home (or Settings) triggers the native prompt. iPhone/iPad: it shows Share → Add to Home Screen steps.
+- The service worker only registers in production builds (`npm run build`), so dev hot reload is never cached. To ship an update to existing installs, bump `VERSION` in `sw.js`.
+- Saved games and stats live in localStorage, so they work offline too.
+
+## Sound and haptics
+
+All sounds are synthesized (`web/src/sound.ts`). Settings has a volume slider and a vibration toggle (Android only; iOS Safari has no vibration API).

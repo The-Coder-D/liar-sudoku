@@ -11,8 +11,14 @@ import {
   setReduceMotion,
   getSoundEnabled,
   setSoundEnabled,
+  getSoundVolume,
+  setSoundVolume,
+  getHapticsEnabled,
+  setHapticsEnabled,
 } from "./preferences";
 import { sfx } from "./sound";
+import { haptic, hapticsSupported } from "./haptics";
+import { InstallButton, useInstallAvailable } from "./components/InstallPrompt";
 import { loadStats } from "./stats";
 import { loadSavedGame, describeSavedGame } from "./gameSave";
 
@@ -109,6 +115,21 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
     if (next) sfx.click(); // Confirm audibly that sound is back on.
   };
 
+  const [volume, setVolumeState] = useState(() => getSoundVolume());
+  const [hapticsOn, setHapticsOnState] = useState(() => getHapticsEnabled());
+  const { pwa, available: installAvailable } = useInstallAvailable();
+
+  const changeVolume = (v: number) => {
+    setSoundVolume(v);
+    setVolumeState(v);
+  };
+  const toggleHaptics = () => {
+    const next = !hapticsOn;
+    setHapticsEnabled(next);
+    setHapticsOnState(next);
+    if (next) haptic.success();
+  };
+
   const resetTutorial = () => {
     window.localStorage.removeItem(ONBOARDING_KEY);
     setTutorialResetNote(true);
@@ -139,6 +160,11 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
         <LogoIcon />
         <h1>Liar Sudoku</h1>
         <p className="tagline">One game where the clues lie to you. One where they don't.</p>
+        {installAvailable && (
+          <div className="install-pill-wrap">
+            <InstallButton className="install-pill" label="⬇ Install · play offline" />
+          </div>
+        )}
         {stats.totalSolved > 0 && (
           <div className="stats-strip">
             {stats.currentStreak > 0 && (
@@ -294,6 +320,58 @@ export function HomeScreen({ onSelectMode, onLoadGame, professorMuted, onToggleP
               >
                 {soundOn ? "On" : "Off"}
               </button>
+            </div>
+
+            <div className="settings-row settings-row-volume">
+              <div>
+                <strong>Volume</strong>
+                <p className="settings-row-desc">{Math.round(volume * 100)}%</p>
+              </div>
+              <input
+                className="volume-slider"
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={volume}
+                aria-label="Sound volume"
+                disabled={!soundOn}
+                onChange={(e) => changeVolume(Number(e.target.value))}
+                onPointerUp={() => sfx.place()}
+                onKeyUp={() => sfx.place()}
+              />
+            </div>
+
+            {hapticsSupported() && (
+              <div className="settings-row">
+                <div>
+                  <strong>Vibration</strong>
+                  <p className="settings-row-desc">A light buzz on taps, placements and wins.</p>
+                </div>
+                <button
+                  className={hapticsOn ? "btn btn-toggle btn-toggle-on" : "btn btn-toggle"}
+                  onClick={toggleHaptics}
+                  aria-pressed={hapticsOn}
+                >
+                  {hapticsOn ? "On" : "Off"}
+                </button>
+              </div>
+            )}
+
+            <div className="settings-row">
+              <div>
+                <strong>Install &amp; offline</strong>
+                <p className="settings-row-desc">
+                  {pwa.installed
+                    ? "Installed — you're playing the app version."
+                    : installAvailable
+                      ? "Save Liar Sudoku to your device to play offline, full-screen."
+                      : pwa.offlineReady
+                        ? "Offline-ready: this browser has saved the game, so it opens without a connection."
+                        : "Use your browser's menu (Install app / Add to Home Screen) to install."}
+                </p>
+              </div>
+              {installAvailable && <InstallButton label="Install" />}
             </div>
 
             <div className="settings-row">

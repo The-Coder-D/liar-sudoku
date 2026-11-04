@@ -547,3 +547,124 @@ body {
     padding-bottom: 200px;
   }
 }
+
+/* ---------- Install pill, offline badge, install steps, volume slider ---------- */
+.install-pill-wrap { display: flex; justify-content: center; margin-top: 0.85rem; }
+.install-pill {
+  font: inherit; font-size: 0.82rem; font-weight: 600; letter-spacing: 0.02em;
+  color: #1a1306; background: linear-gradient(135deg, #e9b25c, #c98a3b);
+  border: 0; border-radius: 999px; padding: 0.5rem 1.05rem; min-height: 40px; cursor: pointer;
+  box-shadow: 0 6px 18px rgba(201, 138, 59, 0.28);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.install-pill:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(201, 138, 59, 0.38); }
+.install-pill:active { transform: scale(0.97); }
+
+.offline-badge {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  top: calc(env(safe-area-inset-top, 0px) + 10px); z-index: 60;
+  font-size: 0.78rem; font-weight: 600; color: #ffe3b3;
+  background: rgba(20, 23, 28, 0.92); border: 1px solid rgba(201, 138, 59, 0.5);
+  border-radius: 999px; padding: 0.35rem 0.85rem; pointer-events: none;
+}
+
+.install-steps { margin: 0.5rem 0 1rem; padding-left: 1.25rem; line-height: 1.6; text-align: left; }
+.install-steps li { margin-bottom: 0.4rem; }
+
+.settings-row-volume { align-items: center; }
+.volume-slider { width: min(180px, 42vw); accent-color: #c98a3b; height: 32px; touch-action: pan-y; }
+.volume-slider:disabled { opacity: 0.4; }
+
+/* ======================= Mobile pass ======================= */
+
+/* No rubber-band pull-to-refresh or bounce fighting the board; installed app feels native. */
+html, body { overscroll-behavior-y: none; }
+body { min-height: 100dvh; }
+
+/* Installed (standalone) mode on notched phones: status bar is translucent, keep content clear of it. */
+@media (display-mode: standalone) {
+  .app-shell, .home-shell { padding-top: calc(env(safe-area-inset-top, 0px) + 12px); }
+  .toast { top: calc(env(safe-area-inset-top, 0px) + 12px); }
+}
+
+/* Modals: never taller than the visible screen, scroll inside, respect notches. */
+.modal-overlay {
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+}
+.modal-panel { max-height: 92dvh; overscroll-behavior: contain; }
+.settings-row { gap: 12px; }
+.settings-row > div:first-child { min-width: 0; flex: 1; }
+.settings-row .btn { min-height: 44px; min-width: 64px; }
+.modal-dismiss { min-height: 46px; }
+
+/* Landscape phones: short viewport, so the board is sized by HEIGHT and the controls sit beside it. */
+@media (orientation: landscape) and (max-height: 520px) {
+  .app-shell {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    align-content: flex-start;
+    padding: 6px max(14px, env(safe-area-inset-right)) 6px max(14px, env(safe-area-inset-left));
+    gap: 6px 14px;
+  }
+  .app-header { order: 0; flex: 1 1 0; width: auto; max-width: none; flex-wrap: nowrap; align-items: center; }
+  .app-header h1 { font-size: 18px; white-space: nowrap; }
+  .tagline { display: none; }
+  .header-actions { flex-wrap: nowrap; }
+  .header-actions .btn { min-height: 34px; padding: 4px 10px; font-size: 12px; }
+  .difficulty-toggle { order: 0; flex: 0 1 300px; width: auto; }
+  .difficulty-btn { min-height: 34px; }
+
+  .board-area {
+    order: 4;
+    flex: 1 0 100%;
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 16px;
+  }
+  .board-area > .sudoku-grid { order: 0; }
+  .sudoku-grid { --cell: clamp(24px, calc((100dvh - 82px) / 9), 44px); box-shadow: none; }
+  .side-panel { display: flex; width: min(300px, 44vw); gap: 8px; max-height: calc(100dvh - 54px); overflow-y: auto; overscroll-behavior: contain; padding-bottom: 48px; }
+  .side-panel > * { order: 0; width: 100%; max-width: none; }
+  .side-panel > .message { order: 0; font-size: 13px; scroll-margin-bottom: 0; }
+  .side-panel > .input-dock {
+    position: static;
+    order: 0;
+    box-shadow: none;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 0;
+  }
+  .input-dock .num-btn { min-height: 36px; }
+  .input-dock .mode-btn, .input-dock > .btn-hint, .input-dock .notes-toggle { min-height: 34px; }
+  .stats { display: none; }
+
+  /* The owl shrinks to a corner badge; its line still shows in the tap menu / when speaking. */
+  .professor.professor-inline { position: fixed; right: max(10px, env(safe-area-inset-right)); bottom: 6px; top: auto; left: auto; width: auto; order: 0; }
+  .professor-inline .professor-avatar { width: 40px; height: 40px; padding: 3px; }
+  .professor-inline .professor-bubble, .professor-inline .professor-badge { display: none; }
+  .professor-inline .professor-menu { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; width: 220px; }
+
+  .home-shell { flex-direction: column; padding: 12px max(20px, env(safe-area-inset-left)) 12px; gap: 12px; justify-content: flex-start; }
+  .home-header h1 { font-size: 26px; }
+  .menu-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .menu-card { padding: 12px 14px; }
+  .menu-card-desc { display: none; }
+
+  .modal-panel { padding: 16px 20px; gap: 12px; }
+}
+
+/* Very short landscape screens (iPhone SE class): drop the difficulty row, the menu has it. */
+@media (orientation: landscape) and (max-height: 360px) {
+  .difficulty-toggle { display: none; }
+  .sudoku-grid { --cell: clamp(22px, calc((100dvh - 66px) / 9), 40px); }
+  .side-panel { max-height: calc(100dvh - 50px); }
+}
+
+/* Buttons inside settings rows keep their natural width; the text column takes the slack. */
+.settings-row > .btn, .settings-row > button { flex: 0 0 auto; width: auto; }

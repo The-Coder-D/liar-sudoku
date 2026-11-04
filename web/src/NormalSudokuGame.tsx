@@ -34,6 +34,7 @@ import {
 } from "./professor";
 import { getDefaultDifficulty } from "./preferences";
 import { sfx } from "./sound";
+import { haptic } from "./haptics";
 import { recordSolve } from "./stats";
 import { writeSavedGame, clearSavedGame, type SavedGame } from "./gameSave";
 import {
@@ -343,6 +344,7 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
       : null;
     const wasHintAlreadyRevealedHere = fillHint && fillHint.row === row && fillHint.col === col && fillHintRevealed;
 
+    haptic.place();
     if (isCorrect) sfx.place();
     else sfx.wrong();
 
@@ -368,7 +370,9 @@ export function NormalSudokuGame({ onExit, professorMuted, onToggleProfessorMute
       sfx.solved();
       emitOwl({ type: "solved" });
       const { isNewBestTime, streakChanged } = recordSolve("normal", difficulty, elapsedSeconds);
+      haptic.solved();
       if (isNewBestTime) {
+        window.setTimeout(() => sfx.newBest(), 1700);
         professorSay(PROFESSOR_NEW_BEST_TIME, "excited");
       } else if (streakChanged) {
         professorSay(PROFESSOR_STREAK_CONTINUED, "excited");
